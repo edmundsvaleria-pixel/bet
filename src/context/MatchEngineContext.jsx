@@ -17,6 +17,7 @@ export const MatchEngineProvider = ({ children }) => {
   const intervalRef = useRef(null)
   const processingRef = useRef(false)
 
+  // Persist to localStorage
   useEffect(() => {
     localStorage.setItem('betzone_custom_matches', JSON.stringify(customMatches))
   }, [customMatches])
@@ -25,7 +26,30 @@ export const MatchEngineProvider = ({ children }) => {
     localStorage.setItem('betzone_match_history', JSON.stringify(matchHistory))
   }, [matchHistory])
 
+  // Add a custom match with final score and goal schedule
   const addCustomMatch = (match) => {
+    // Determine final scores
+    const finalHome = match.finalHomeScore || 0
+    const finalAway = match.finalAwayScore || 0
+
+    // If no final scores set, generate random ones (0-5 each)
+    const homeGoals = finalHome > 0 ? finalHome : Math.floor(Math.random() * 6)
+    const awayGoals = finalAway > 0 ? finalAway : Math.floor(Math.random() * 6)
+
+    // Generate random goal minutes (unique, 1-89)
+    const generateGoalMinutes = (count) => {
+      if (count === 0) return []
+      const minutes = new Set()
+      while (minutes.size < count) {
+        const minute = Math.floor(Math.random() * 89) + 1 // 1-89
+        minutes.add(minute)
+      }
+      return Array.from(minutes).sort((a, b) => a - b)
+    }
+
+    const homeMinutes = generateGoalMinutes(homeGoals)
+    const awayMinutes = generateGoalMinutes(awayGoals)
+
     const newMatch = {
       ...match,
       id: Date.now(),
@@ -36,6 +60,12 @@ export const MatchEngineProvider = ({ children }) => {
       goalTimeline: [],
       createdAt: new Date().toISOString(),
       markets: match.markets || {},
+      goalSchedule: {
+        home: homeMinutes,
+        away: awayMinutes,
+      },
+      finalHomeScore: homeGoals,
+      finalAwayScore: awayGoals,
     }
     setCustomMatches(prev => [...prev, newMatch])
     return newMatch
@@ -64,7 +94,7 @@ export const MatchEngineProvider = ({ children }) => {
     }
   }
 
-  // Main simulation effect - runs every second
+  // Main simulation effect – runs every second
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
 
@@ -79,24 +109,37 @@ export const MatchEngineProvider = ({ children }) => {
       let matchesToArchive = []
 
       updatedMatches = updatedMatches.map(m => {
+        // Auto-start when time arrives
         if (m.status === 'upcoming' && new Date(m.startTime) <= now) {
           changesMade = true
           return { ...m, status: 'live', elapsed: 0 }
         }
 
+        // Live simulation
         if (m.status === 'live') {
           let newGoals = { ...m.goals }
           let events = [...(m.events || [])]
           let goalTimeline = [...(m.goalTimeline || [])]
           let newElapsed = (m.elapsed || 0) + 1
 
-          if (Math.random() < 0.07) {
-            const team = Math.random() < 0.5 ? 'home' : 'away'
-            newGoals[team] += 1
-            events.push({ minute: newElapsed, team, type: 'goal' })
-            goalTimeline.push({ minute: newElapsed, team, score: { ...newGoals } })
+          // Use the goal schedule
+          const schedule = m.goalSchedule || { home: [], away: [] }
+          const homeMinutes = schedule.home || []
+          const awayMinutes = schedule.away || []
+
+          // Check if current minute is in the schedule
+          if (homeMinutes.includes(newElapsed)) {
+            newGoals.home += 1
+            events.push({ minute: newElapsed, team: 'home', type: 'goal' })
+            goalTimeline.push({ minute: newElapsed, team: 'home', score: { ...newGoals } })
+          }
+          if (awayMinutes.includes(newElapsed)) {
+            newGoals.away += 1
+            events.push({ minute: newElapsed, team: 'away', type: 'goal' })
+            goalTimeline.push({ minute: newElapsed, team: 'away', score: { ...newGoals } })
           }
 
+          // Check if match finished (90 mins)
           if (newElapsed >= 90) {
             changesMade = true
             const result = {
@@ -121,19 +164,13 @@ export const MatchEngineProvider = ({ children }) => {
           if (newGoals.home !== m.goals.home || newGoals.away !== m.goals.away || newElapsed !== m.elapsed) {
             changesMade = true
           }
-          return {
-            ...m,
-            goals: newGoals,
-            elapsed: newElapsed,
-            events,
-            goalTimeline,
-          }
+          return { ...m, goals: newGoals, elapsed: newElapsed, events, goalTimeline }
         }
 
         return m
       })
 
-      // Handle finished matches - archive after 10 seconds
+      // Handle finished matches – archive after 10 seconds
       const nowTime = now.getTime()
       const kept = []
       const toArchive = []
@@ -159,6 +196,7 @@ export const MatchEngineProvider = ({ children }) => {
         ])
       }
 
+      // Settle bets for finished matches
       if (matchesToSettle.length > 0) {
         setTimeout(() => {
           matchesToSettle.forEach(({ matchId, result }) => {
@@ -170,20 +208,15 @@ export const MatchEngineProvider = ({ children }) => {
 
       if (changesMade) {
         setCustomMatches(kept)
-      } else {
-        if (toArchive.length > 0) {
-          setCustomMatches(kept)
-        }
+      } else if (toArchive.length > 0) {
+        setCustomMatches(kept)
       }
 
       processingRef.current = false
     }, 1000)
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [customMatches, settleBetsForMatch])
 
@@ -205,8 +238,6 @@ export const MatchEngineProvider = ({ children }) => {
 
 export const useMatchEngine = () => {
   const context = useContext(MatchEngineContext)
-  if (!context) {
-    throw new Error('useMatchEngine must be used within a MatchEngineProvider')
-  }
+  if (!context) throw new Error('useMatchEngine must be used within a MatchEngineProvider')
   return context
 }
