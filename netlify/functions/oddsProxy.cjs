@@ -4,65 +4,48 @@ const BACKUP_ODDS_API_KEY = process.env.VITE_BACKUP_ODDS_API_KEY
 const BASE_URL = 'https://api.the-odds-api.com/v4'
 
 exports.handler = async (event) => {
-  // Only accept GET
   if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    }
+    return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) }
   }
 
-  // Get the full URL (already encoded) from query parameter
-  // We'll pass the entire URL as a single parameter to avoid encoding issues
+  // Get the full target URL from query parameter
   const targetUrl = event.queryStringParameters?.url
   if (!targetUrl) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'Missing url parameter' })
-    }
+    return { statusCode: 400, body: JSON.stringify({ error: 'Missing url parameter' }) }
   }
 
-  // Decode the URL (it's already encoded, but we'll decode to be safe)
   const decodedUrl = decodeURIComponent(targetUrl)
 
-  // Validate that it's an Odds API request (security)
   if (!decodedUrl.startsWith(BASE_URL)) {
-    return {
-      statusCode: 403,
-      body: JSON.stringify({ error: 'Forbidden: Only Odds API requests allowed' })
-    }
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden: Only Odds API requests allowed' }) }
   }
 
-  // Try primary key, fallback to backup
+  // Try primary key first, fallback to backup
   const keys = [ODDS_API_KEY, BACKUP_ODDS_API_KEY].filter(Boolean)
   let lastError = null
 
   for (const key of keys) {
     try {
-      // Replace the API key in the URL (the URL already contains the key)
-      // We'll just use the URL as-is because it already has the apiKey parameter
-      // But we need to ensure the key is correct
-      // Since the URL is pre-built with the API key, we just fetch it.
-      const urlWithKey = decodedUrl // The frontend already includes apiKey
+      // The URL already contains an apiKey, but we'll replace with the current key to be safe
+      const urlObj = new URL(decodedUrl)
+      urlObj.searchParams.set('apiKey', key)
+      const finalUrl = urlObj.toString()
 
-      console.log(`📡 Proxying Odds request to: ${urlWithKey.replace(/apiKey=[^&]+/, 'apiKey=***')}`)
+      console.log(`📡 Proxying Odds request (${key.slice(0, 4)}...)`)
 
-      const response = await fetch(urlWithKey)
+      const response = await fetch(finalUrl)
 
       if (!response.ok) {
-        const errorText = await response.text()
-        console.warn(`⚠️ Odds API error (${response.status}) with key:`, errorText.slice(0, 100))
+        const text = await response.text()
+        console.warn(`⚠️ Odds API error (${response.status}) with key:`, text.slice(0, 100))
         lastError = `API error ${response.status}`
-        continue // try next key
+        continue
       }
 
       const data = await response.json()
       return {
         statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         body: JSON.stringify(data),
       }
     } catch (error) {
@@ -72,12 +55,8 @@ exports.handler = async (event) => {
     }
   }
 
-  // All keys failed
   return {
     statusCode: 500,
-    body: JSON.stringify({
-      error: 'Odds API unavailable',
-      details: lastError || 'All API keys failed'
-    })
+    body: JSON.stringify({ error: 'Odds API unavailable', details: lastError || 'All keys failed' })
   }
 }

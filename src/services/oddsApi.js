@@ -2,7 +2,7 @@
 const ODDS_API_KEY = import.meta.env.VITE_ODDS_API_KEY
 const BACKUP_ODDS_API_KEY = import.meta.env.VITE_BACKUP_ODDS_API_KEY
 const BASE_URL = 'https://api.the-odds-api.com/v4'
-// ✅ Use our own Netlify function instead of third-party proxy
+// ✅ Use your own Netlify Function – NO third‑party proxy!
 const PROXY_URL = '/.netlify/functions/oddsProxy?url='
 
 const SPORT_KEYS = {
@@ -34,16 +34,18 @@ export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
 
   for (const key of sportKeysToTry) {
     try {
-      // Build the full URL with apiKey
       const apiKey = ODDS_API_KEY || BACKUP_ODDS_API_KEY
       if (!apiKey) {
         console.warn('⚠️ No Odds API key available')
         break
       }
 
+      // Build the full URL
       const url = `${BASE_URL}/sports/${key}/odds/?apiKey=${apiKey}&regions=eu&markets=h2h,overunder&date=${date || ''}`
+      // ✅ Call your Netlify function with the encoded URL
       const proxyUrl = `${PROXY_URL}${encodeURIComponent(url)}`
 
+      console.log(`📡 Fetching odds via proxy: ${key}`)
       const response = await fetch(proxyUrl)
 
       if (!response.ok) {
@@ -53,7 +55,6 @@ export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
 
       const data = await response.json()
 
-      // Find match by teams (case-insensitive)
       const match = data.find(
         (m) =>
           m.home_team?.toLowerCase() === homeTeam?.toLowerCase() &&
@@ -65,7 +66,6 @@ export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
         return match
       }
 
-      // Try partial match
       const partial = data.find(
         (m) =>
           m.home_team?.toLowerCase().includes(homeTeam?.toLowerCase()) ||
@@ -82,7 +82,7 @@ export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
     }
   }
 
-  console.log(`ℹ️ No odds found for ${homeTeam} vs ${awayTeam} (free tier limitation)`)
+  console.log(`ℹ️ No odds found for ${homeTeam} vs ${awayTeam}`)
   return null
 }
 
@@ -95,15 +95,11 @@ export const extractOdds = (matchOdds) => {
         const home = market.outcomes.find((o) => o.name === matchOdds.home_team)
         const draw = market.outcomes.find((o) => o.name === 'Draw')
         const away = market.outcomes.find((o) => o.name === matchOdds.away_team)
-        if (home && draw && away) {
-          result.h2h = { home: home.price, draw: draw.price, away: away.price }
-        }
+        if (home && draw && away) result.h2h = { home: home.price, draw: draw.price, away: away.price }
       } else if (market.key === 'overunder') {
         const over = market.outcomes.find((o) => o.name.includes('Over'))
         const under = market.outcomes.find((o) => o.name.includes('Under'))
-        if (over && under) {
-          result.overUnder = { over: over.price, under: under.price }
-        }
+        if (over && under) result.overUnder = { over: over.price, under: under.price }
       }
     })
   })
