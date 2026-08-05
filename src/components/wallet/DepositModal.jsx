@@ -29,7 +29,7 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
     try {
       const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY
       if (!publicKey) {
-        throw new Error('Paystack public key not configured. Please contact support.')
+        throw new Error('Paystack public key not configured.')
       }
 
       const email = user?.email || 'user@example.com'
@@ -41,17 +41,23 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
         email: email,
         amount: amountInKobo,
         currency: currency,
-        ref: `BETZONE-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        label: "BetZone Deposit",
+        theme: {
+          brandColor: '#2563EB',
+          logo: 'https://betwithus.netlify.app/logo.png',
+        },
         metadata: {
           custom_fields: [
             { display_name: "Full Name", variable_name: "full_name", value: fullName },
             { display_name: "Platform", variable_name: "platform", value: "BetZone" }
           ]
         },
+        ref: `BETZONE-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        channels: ['mobile_money'],
+        // ✅ Callback: Shows success message only. Webhook credits the wallet.
         callback: function(response) {
           const reference = response.reference
           console.log('Payment successful! Reference:', reference)
-          deposit(val)
           showNotification(
             `Deposit of ${currency} ${val.toFixed(2)} successful! Reference: ${reference.slice(0, 10)}...`,
             'success'

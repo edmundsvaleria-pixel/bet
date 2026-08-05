@@ -1,31 +1,67 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
 import { useWallet } from '../context/WalletContext'
 import DepositModal from '../components/wallet/DepositModal'
 import WithdrawModal from '../components/wallet/WithdrawModal'
 import TransactionItem from '../components/wallet/TransactionItem'
-import { Plus, Minus } from 'lucide-react'
+import { Plus, Minus, RefreshCw } from 'lucide-react'
 
 const Wallet = () => {
-  const { balance, depositCount, totalDeposited, transactions } = useWallet()
-  const { user } = useSupabase()
+  const { user, balance, refreshBalance, loading } = useSupabase()
+  const { depositCount, totalDeposited, transactions } = useWallet()
   const [showDeposit, setShowDeposit] = useState(false)
   const [showWithdraw, setShowWithdraw] = useState(false)
-  
+  const [refreshing, setRefreshing] = useState(false)
+
   const currency = user?.currency || 'GHS'
+
+  // Auto-refresh balance when page loads and when user changes
+  useEffect(() => {
+    if (user) {
+      refreshBalance()
+    }
+  }, [user])
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await refreshBalance()
+    setRefreshing(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="py-4 space-y-4">
+        <div className="animate-pulse bg-card rounded-lg p-4 h-24"></div>
+        <div className="animate-pulse bg-card rounded-lg p-4 h-16"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="py-4 space-y-6">
-      <h1 className="text-2xl font-bold text-white">Wallet</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-white">Wallet</h1>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="text-gray-400 hover:text-white transition"
+        >
+          <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
+        </button>
+      </div>
       
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-card rounded-lg p-4 border border-primary/20">
           <div className="text-sm text-gray-400">Available Balance</div>
-          <div className="text-2xl font-bold text-green-400">{currency} {balance?.available?.toFixed(2) || '0.00'}</div>
+          <div className="text-2xl font-bold text-green-400">
+            {currency} {balance?.available?.toFixed(2) || '0.00'}
+          </div>
         </div>
         <div className="bg-card rounded-lg p-4 border border-yellow-500/20">
           <div className="text-sm text-gray-400">Withdrawable</div>
-          <div className="text-2xl font-bold text-yellow-400">{currency} {balance?.withdrawable?.toFixed(2) || '0.00'}</div>
+          <div className="text-2xl font-bold text-yellow-400">
+            {currency} {balance?.withdrawable?.toFixed(2) || '0.00'}
+          </div>
         </div>
       </div>
 

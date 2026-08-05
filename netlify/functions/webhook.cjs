@@ -1,4 +1,3 @@
-// netlify/functions/webhook.cjs
 const crypto = require('crypto')
 const { createClient } = require('@supabase/supabase-js')
 
@@ -32,7 +31,7 @@ exports.handler = async (event) => {
 
   const data = payload.data
   const reference = data.reference
-  const amount = data.amount / 100 // kobo → GHS
+  const amount = data.amount / 100
   const customerEmail = data.customer.email
 
   // Find user by email
@@ -47,7 +46,7 @@ exports.handler = async (event) => {
     return { statusCode: 404, body: 'User not found' }
   }
 
-  // ✅ Fetch current available balance
+  // Get current available balance
   const { data: current, error: fetchError } = await supabase
     .from('balances')
     .select('available')
@@ -61,7 +60,7 @@ exports.handler = async (event) => {
 
   const newAvailable = (current?.available || 0) + amount
 
-  // ✅ Update balance (no raw() used)
+  // Update balance (no raw())
   const { error: balanceError } = await supabase
     .from('balances')
     .update({ available: newAvailable })
