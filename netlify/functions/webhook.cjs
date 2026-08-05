@@ -47,7 +47,7 @@ exports.handler = async (event) => {
     return { statusCode: 404, body: 'User not found' }
   }
 
-  // Fetch current available balance (fix: no raw() )
+  // ✅ Fetch current available balance
   const { data: current, error: fetchError } = await supabase
     .from('balances')
     .select('available')
@@ -61,7 +61,7 @@ exports.handler = async (event) => {
 
   const newAvailable = (current?.available || 0) + amount
 
-  // Update balance
+  // ✅ Update balance (no raw() used)
   const { error: balanceError } = await supabase
     .from('balances')
     .update({ available: newAvailable })

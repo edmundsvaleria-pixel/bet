@@ -13,6 +13,7 @@ export const walletService = {
         .single()
 
       if (error && error.code === 'PGRST116') {
+        // No balance found, create one
         const { data: newBalance, error: createError } = await supabase
           .from('balances')
           .insert({ user_id: userId, available: 0, withdrawable: 0 })
@@ -32,6 +33,7 @@ export const walletService = {
   // Deposit – credits available balance
   async deposit(userId, amount, reference) {
     try {
+      // 1. Fetch current balance
       const { data: current, error: fetchError } = await supabase
         .from('balances')
         .select('available')
@@ -42,6 +44,7 @@ export const walletService = {
 
       const newAvailable = (current?.available || 0) + amount
 
+      // 2. Update balance
       const { data: balance, error: balanceError } = await supabase
         .from('balances')
         .update({ available: newAvailable })
@@ -51,6 +54,7 @@ export const walletService = {
 
       if (balanceError) throw balanceError
 
+      // 3. Log transaction
       await supabase.from('transactions').insert({
         user_id: userId,
         type: 'deposit',
@@ -72,6 +76,7 @@ export const walletService = {
   // Withdraw – deducts from withdrawable balance
   async withdraw(userId, amount) {
     try {
+      // 1. Fetch current balance
       const { data: current, error: fetchError } = await supabase
         .from('balances')
         .select('withdrawable')
@@ -88,6 +93,7 @@ export const walletService = {
       const commission = amount * 0.19
       const netAmount = amount - commission
 
+      // 2. Update balance
       const { data: newBalance, error: balanceError } = await supabase
         .from('balances')
         .update({ withdrawable: newWithdrawable })
@@ -97,6 +103,7 @@ export const walletService = {
 
       if (balanceError) throw balanceError
 
+      // 3. Log transaction
       await supabase.from('transactions').insert({
         user_id: userId,
         type: 'withdrawal',
@@ -141,6 +148,7 @@ export const walletService = {
       const sign = amount >= 0 ? '+' : '-'
       const absAmount = Math.abs(amount)
 
+      // 1. Fetch current balance
       const { data: current, error: fetchError } = await supabase
         .from('balances')
         .select(column)
@@ -156,6 +164,7 @@ export const walletService = {
         return { success: false, error: 'Resulting balance cannot be negative' }
       }
 
+      // 2. Update balance
       const { data: balance, error: balanceError } = await supabase
         .from('balances')
         .update({ [column]: newValue })
@@ -165,6 +174,7 @@ export const walletService = {
 
       if (balanceError) throw balanceError
 
+      // 3. Log transaction
       await supabase.from('transactions').insert({
         user_id: userId,
         type: 'admin_adjustment',
@@ -220,6 +230,7 @@ export const walletService = {
       }).eq('id', transactionId)
 
       if (status === 'rejected') {
+        // Refund the amount back to withdrawable balance
         const { data: current, error: fetchError } = await supabase
           .from('balances')
           .select('withdrawable')
