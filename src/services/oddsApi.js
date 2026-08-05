@@ -1,7 +1,9 @@
+// src/services/oddsApi.js
 const ODDS_API_KEY = import.meta.env.VITE_ODDS_API_KEY
 const BACKUP_ODDS_API_KEY = import.meta.env.VITE_BACKUP_ODDS_API_KEY
 const BASE_URL = 'https://api.the-odds-api.com/v4'
-const PROXY_URL = 'https://api.allorigins.win/raw?url='
+// ✅ Use our own Netlify function instead of third-party proxy
+const PROXY_URL = '/.netlify/functions/oddsProxy?url='
 
 const SPORT_KEYS = {
   'Premier League': 'soccer_epl',
@@ -32,41 +34,48 @@ export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
 
   for (const key of sportKeysToTry) {
     try {
-      const url = `${PROXY_URL}${encodeURIComponent(
-        `${BASE_URL}/sports/${key}/odds/?apiKey=${ODDS_API_KEY}&regions=eu&markets=h2h,overunder&date=${date || ''}`
-      )}`
-      
-      const response = await fetch(url)
-      
+      // Build the full URL with apiKey
+      const apiKey = ODDS_API_KEY || BACKUP_ODDS_API_KEY
+      if (!apiKey) {
+        console.warn('⚠️ No Odds API key available')
+        break
+      }
+
+      const url = `${BASE_URL}/sports/${key}/odds/?apiKey=${apiKey}&regions=eu&markets=h2h,overunder&date=${date || ''}`
+      const proxyUrl = `${PROXY_URL}${encodeURIComponent(url)}`
+
+      const response = await fetch(proxyUrl)
+
       if (!response.ok) {
         console.warn(`⚠️ Odds API failed for ${key} (${response.status})`)
         continue
       }
-      
+
       const data = await response.json()
-      
+
+      // Find match by teams (case-insensitive)
       const match = data.find(
         (m) =>
           m.home_team?.toLowerCase() === homeTeam?.toLowerCase() &&
           m.away_team?.toLowerCase() === awayTeam?.toLowerCase()
       )
-      
+
       if (match) {
         console.log(`✅ Found odds for ${homeTeam} vs ${awayTeam}`)
         return match
       }
-      
+
+      // Try partial match
       const partial = data.find(
         (m) =>
           m.home_team?.toLowerCase().includes(homeTeam?.toLowerCase()) ||
           m.away_team?.toLowerCase().includes(awayTeam?.toLowerCase())
       )
-      
+
       if (partial) {
         console.log(`✅ Found partial odds match`)
         return partial
       }
-      
     } catch (error) {
       console.warn(`⚠️ Odds API error for ${key}:`, error.message)
       continue
