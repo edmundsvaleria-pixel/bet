@@ -15,8 +15,6 @@ const Home = () => {
   const [error, setError] = useState(null)
   const { customMatches } = useMatchEngine()
   const { user } = useSupabase()
-
-  // Check if user is admin
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
@@ -54,7 +52,8 @@ const Home = () => {
           return results.map((res, idx) => res.value || matches[idx])
         }
 
-        const liveWithOdds = await fetchOddsForMatches(limitedLive)
+        // ⚡ Only fetch odds for first 5 live matches to improve speed
+        const liveWithOdds = await fetchOddsForMatches(limitedLive.slice(0, 5))
         const upcomingWithOdds = await fetchOddsForMatches(limitedUpcoming)
 
         setLiveMatches(liveWithOdds)
@@ -151,11 +150,11 @@ const Home = () => {
           </div>
           <div className="space-y-3">
             {allLive.map((match) => (
-              <MatchCard 
-                key={match.fixture.id} 
-                match={match} 
-                isLive={true} 
-                showOdds={true} 
+              <MatchCard
+                key={match.fixture.id}
+                match={match}
+                isLive={true}
+                showOdds={true}
               />
             ))}
           </div>
@@ -167,11 +166,11 @@ const Home = () => {
           <h2 className="text-xl font-bold text-white mb-3">📅 Upcoming Matches</h2>
           <div className="space-y-3">
             {allUpcoming.map((match) => (
-              <MatchCard 
-                key={match.fixture.id} 
-                match={match} 
-                isLive={false} 
-                showOdds={true} 
+              <MatchCard
+                key={match.fixture.id}
+                match={match}
+                isLive={false}
+                showOdds={true}
               />
             ))}
           </div>
@@ -179,7 +178,7 @@ const Home = () => {
       )}
 
       {allLive.length === 0 && allUpcoming.length === 0 && (
-        <EmptyState 
+        <EmptyState
           icon="⚽"
           title="No matches available"
           message="Check back later for upcoming matches."

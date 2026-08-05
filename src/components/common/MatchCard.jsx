@@ -46,13 +46,13 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
     <Link to={`/match/${match.fixture.id}`} className="block">
       <div className={`bg-card rounded-lg p-3 border transition ${isLiveMatch ? 'border-red-500/40 hover:border-red-500/60' : 'border-white/5 hover:border-primary/30'}`}>
         <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-          {leagueLogo && <img src={leagueLogo} alt={leagueName} className="w-4 h-4 object-contain" />}
+          {leagueLogo && <img src={leagueLogo} alt={leagueName} loading="lazy" className="w-4 h-4 object-contain" />}
           <span>{leagueName}</span>
           {match.isCustom && <span className="text-xs text-yellow-400 ml-1">⭐ Custom</span>}
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {homeLogo && <img src={homeLogo} alt={homeTeam} className="w-6 h-6 object-contain" />}
+            {homeLogo && <img src={homeLogo} alt={homeTeam} loading="lazy" className="w-6 h-6 object-contain" />}
             <span className="font-medium text-sm">{homeTeam}</span>
           </div>
           <div className="text-center">
@@ -68,7 +68,7 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
           </div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm">{awayTeam}</span>
-            {awayLogo && <img src={awayLogo} alt={awayTeam} className="w-6 h-6 object-contain" />}
+            {awayLogo && <img src={awayLogo} alt={awayTeam} loading="lazy" className="w-6 h-6 object-contain" />}
           </div>
         </div>
         {showOdds && (
