@@ -84,10 +84,13 @@ const Home = () => {
     fetchData()
   }, [])
 
-  // Convert custom matches to MatchCard format
+  // ✅ Convert custom matches to MatchCard format – now with odds
   const customToMatchCard = (match) => {
     const isLive = match.status === 'live'
     const isUpcoming = match.status === 'upcoming'
+
+    // ✅ Map custom markets to odds for display on match card
+    const oddsData = match.markets?.h2h || null
 
     return {
       fixture: {
@@ -121,7 +124,7 @@ const Home = () => {
         home: match.goals?.home || 0,
         away: match.goals?.away || 0,
       },
-      odds: match.odds || null,
+      odds: oddsData,
       isCustom: true,
       customMatch: match,
     }
@@ -133,7 +136,7 @@ const Home = () => {
   const allLive = [...liveMatches, ...customLive]
   const allUpcoming = [...upcomingMatches, ...customUpcoming]
 
-  // 🔍 Search logic – filter only custom matches
+  // Search logic – filter only custom matches
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value)
   }
@@ -179,7 +182,6 @@ const Home = () => {
   if (isSearching) {
     return (
       <div className="space-y-4 pb-4">
-        {/* Search bar */}
         <div className="flex items-center gap-2 bg-card rounded-lg p-2 border border-white/5">
           <Search size={20} className="text-gray-400" />
           <input
