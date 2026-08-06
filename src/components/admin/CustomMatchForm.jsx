@@ -1,20 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMatchEngine } from '../../context/MatchEngineContext'
 
 const CustomMatchForm = () => {
   const [homeTeam, setHomeTeam] = useState('')
   const [awayTeam, setAwayTeam] = useState('')
   const [league, setLeague] = useState('')
-  const [startTime, setStartTime] = useState('')
+  // ✅ Auto‑populate start time (current time + 30 minutes)
+  const getDefaultStartTime = () => {
+    const now = new Date()
+    now.setMinutes(now.getMinutes() + 30)
+    return now.toISOString().slice(0, 16) // format: YYYY-MM-DDTHH:MM
+  }
+  const [startTime, setStartTime] = useState(getDefaultStartTime)
   const [finalHomeScore, setFinalHomeScore] = useState('')
   const [finalAwayScore, setFinalAwayScore] = useState('')
-
+  const [homeGoalMinutes, setHomeGoalMinutes] = useState('')
+  const [awayGoalMinutes, setAwayGoalMinutes] = useState('')
   const [oddsHome, setOddsHome] = useState('')
   const [oddsDraw, setOddsDraw] = useState('')
   const [oddsAway, setOddsAway] = useState('')
-
   const [overUnderOdds, setOverUnderOdds] = useState({})
-
   const [correctScores, setCorrectScores] = useState([
     { score: '1-0', odds: '' }, { score: '2-0', odds: '' }, { score: '2-1', odds: '' },
     { score: '3-0', odds: '' }, { score: '3-1', odds: '' }, { score: '3-2', odds: '' },
@@ -23,14 +28,11 @@ const CustomMatchForm = () => {
     { score: '0-3', odds: '' }, { score: '1-3', odds: '' }, { score: '2-3', odds: '' },
   ])
   const [customScore, setCustomScore] = useState({ home: '', away: '', odds: '' })
-
-  // ✅ HT/FT – Fixed spacing: 3 per row with clear labels
   const [htftOdds, setHtftOdds] = useState({
     'Home/Home': '', 'Home/Draw': '', 'Home/Away': '',
     'Draw/Home': '', 'Draw/Draw': '', 'Draw/Away': '',
     'Away/Home': '', 'Away/Draw': '', 'Away/Away': '',
   })
-
   const [error, setError] = useState('')
   const { addCustomMatch } = useMatchEngine()
 
@@ -61,6 +63,11 @@ const CustomMatchForm = () => {
 
   const handleHtftChange = (key, value) => {
     setHtftOdds(prev => ({ ...prev, [key]: value }))
+  }
+
+  const parseMinutes = (str) => {
+    if (!str) return []
+    return str.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0 && n < 90)
   }
 
   const handleSubmit = (e) => {
@@ -101,14 +108,19 @@ const CustomMatchForm = () => {
       markets,
       finalHomeScore: parseInt(finalHomeScore) || 0,
       finalAwayScore: parseInt(finalAwayScore) || 0,
+      homeGoalMinutes: parseMinutes(homeGoalMinutes),
+      awayGoalMinutes: parseMinutes(awayGoalMinutes),
     })
 
+    // Reset form (keep default start time)
     setHomeTeam('')
     setAwayTeam('')
     setLeague('')
-    setStartTime('')
+    setStartTime(getDefaultStartTime())
     setFinalHomeScore('')
     setFinalAwayScore('')
+    setHomeGoalMinutes('')
+    setAwayGoalMinutes('')
     setOddsHome('')
     setOddsDraw('')
     setOddsAway('')
@@ -133,7 +145,6 @@ const CustomMatchForm = () => {
     <div className="bg-dark/50 rounded-lg p-4">
       <h3 className="text-lg font-bold text-white mb-3">Create Custom Match</h3>
       <form onSubmit={handleSubmit} className="space-y-3">
-
         {/* Basic Info */}
         <div className="grid grid-cols-2 gap-3">
           <input
@@ -194,7 +205,31 @@ const CustomMatchForm = () => {
             />
           </div>
         </div>
-        <p className="text-xs text-gray-500">If left blank, goals will be generated randomly (0–5 each).</p>
+
+        {/* Goal Minutes */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Home Goal Minutes (optional)</label>
+            <input
+              type="text"
+              value={homeGoalMinutes}
+              onChange={(e) => setHomeGoalMinutes(e.target.value)}
+              className="w-full bg-card border border-white/10 rounded px-3 py-2 text-white text-sm"
+              placeholder="e.g. 12, 34, 67"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Away Goal Minutes (optional)</label>
+            <input
+              type="text"
+              value={awayGoalMinutes}
+              onChange={(e) => setAwayGoalMinutes(e.target.value)}
+              className="w-full bg-card border border-white/10 rounded px-3 py-2 text-white text-sm"
+              placeholder="e.g. 23, 45, 89"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500">If left blank, goals will be generated randomly.</p>
 
         {/* 1X2 Odds */}
         <div className="text-sm text-gray-400 font-medium">1X2 Odds</div>
@@ -310,17 +345,17 @@ const CustomMatchForm = () => {
           </button>
         </div>
 
-        {/* ✅ HT/FT – Fixed with proper spacing: 3 per row */}
+        {/* HT/FT */}
         <div className="text-sm text-gray-400 font-medium">Half Time / Full Time</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           {Object.keys(htftOdds).map((key) => (
-            <div key={key} className="flex items-center gap-2 bg-dark/30 rounded px-2 py-1.5 border border-white/5">
-              <span className="text-xs text-white font-medium w-24">{key}</span>
+            <div key={key} className="flex items-center gap-1">
+              <span className="text-xs text-white w-24">{key}</span>
               <input
                 type="number"
                 step="0.01"
                 placeholder="Odds"
-                className="flex-1 bg-dark border border-white/10 rounded px-2 py-1 text-white text-xs min-w-[60px]"
+                className="flex-1 bg-dark border border-white/10 rounded px-1 py-0.5 text-white text-xs"
                 value={htftOdds[key]}
                 onChange={(e) => handleHtftChange(key, e.target.value)}
               />
