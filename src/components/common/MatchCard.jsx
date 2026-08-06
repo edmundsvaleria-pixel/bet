@@ -14,15 +14,60 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
   const leagueLogo = match.league?.logo
   const homeScore = match.goals?.home ?? '-'
   const awayScore = match.goals?.away ?? '-'
-  const elapsed = match.fixture?.status?.elapsed || 0
-  const status = match.fixture?.status?.short || 'NS'
-  const matchTime = match.fixture?.date ? new Date(match.fixture.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''
+
+  // ------------------------------------------------
+  // Determine elapsed time
+  // ------------------------------------------------
+  let elapsedSeconds = 0
+  let status = match.fixture?.status?.short || 'NS'
+  let matchTime = match.fixture?.date
+    ? new Date(match.fixture.date).toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : ''
+
+  // For custom matches, use the custom match's elapsedSeconds and status
+  if (match.isCustom && match.customMatch) {
+    const cm = match.customMatch
+    elapsedSeconds = cm.elapsedSeconds || 0
+    status = cm.status === 'live' ? 'LIVE' : cm.status === 'upcoming' ? 'NS' : 'FT'
+    if (cm.status === 'HT') status = 'HT'
+    matchTime = cm.startTime
+      ? new Date(cm.startTime).toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : ''
+  } else {
+    // API matches: elapsed is in minutes (no seconds)
+    const minutes = match.fixture?.status?.elapsed || 0
+    elapsedSeconds = minutes * 60 // approximate
+  }
 
   const isLiveMatch = isLive || ['LIVE', '1H', '2H', 'HT'].includes(status)
-  const isHalfTime = status === 'HT' || (isLiveMatch && elapsed >= 45 && elapsed < 46)
+  const isHalfTime = status === 'HT' || (isLiveMatch && elapsedSeconds === 2700)
+
+  // ------------------------------------------------
+  // Format seconds to MM:SS
+  // ------------------------------------------------
+  const formatTime = (seconds) => {
+    if (seconds === undefined || seconds === null) return '--:--'
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }
+
+  // For display, if it's a custom match we show MM:SS, otherwise we show minutes
+  const displayTime = match.isCustom
+    ? formatTime(elapsedSeconds)
+    : `${Math.floor(elapsedSeconds / 60)}'`
 
   const oddsData = match.odds || null
 
+  // ------------------------------------------------
+  // Bet handling
+  // ------------------------------------------------
   const handleAddBet = (market, oddsValue, label, e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -45,19 +90,46 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
 
   const hasOdds = oddsData && (oddsData.h2h || oddsData.overUnder)
 
+  // ------------------------------------------------
+  // Render
+  // ------------------------------------------------
   return (
     <Link to={`/match/${match.fixture.id}`} className="block">
-      <div className={`bg-card rounded-lg p-3 border transition ${isLiveMatch ? 'border-red-500/40 hover:border-red-500/60' : 'border-white/5 hover:border-primary/30'}`}>
+      <div
+        className={`bg-card rounded-lg p-3 border transition ${
+          isLiveMatch
+            ? 'border-red-500/40 hover:border-red-500/60'
+            : 'border-white/5 hover:border-primary/30'
+        }`}
+      >
         <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-          {leagueLogo && <img src={leagueLogo} alt={leagueName} loading="lazy" className="w-4 h-4 object-contain" />}
+          {leagueLogo && (
+            <img
+              src={leagueLogo}
+              alt={leagueName}
+              loading="lazy"
+              className="w-4 h-4 object-contain"
+            />
+          )}
           <span>{leagueName}</span>
-          {match.isCustom && <span className="text-xs text-yellow-400 ml-1">⭐ Custom</span>}
+          {match.isCustom && (
+            <span className="text-xs text-yellow-400 ml-1">⭐ Custom</span>
+          )}
         </div>
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {homeLogo && <img src={homeLogo} alt={homeTeam} loading="lazy" className="w-6 h-6 object-contain" />}
+            {homeLogo && (
+              <img
+                src={homeLogo}
+                alt={homeTeam}
+                loading="lazy"
+                className="w-6 h-6 object-contain"
+              />
+            )}
             <span className="font-medium text-sm">{homeTeam}</span>
           </div>
+
           <div className="text-center">
             {isLiveMatch ? (
               isHalfTime ? (
@@ -65,32 +137,59 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
               ) : (
                 <>
                   <span className="text-red-500 text-sm font-bold animate-pulse">●</span>
-                  <span className="text-xs text-gray-400 ml-1">{elapsed}'</span>
-                  <div className="text-lg font-bold">{homeScore} : {awayScore}</div>
+                  <span className="text-xs text-gray-400 ml-1">{displayTime}</span>
+                  <div className="text-lg font-bold">
+                    {homeScore} : {awayScore}
+                  </div>
                 </>
               )
             ) : (
               <span className="text-sm text-gray-400">{matchTime}</span>
             )}
           </div>
+
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm">{awayTeam}</span>
-            {awayLogo && <img src={awayLogo} alt={awayTeam} loading="lazy" className="w-6 h-6 object-contain" />}
+            {awayLogo && (
+              <img
+                src={awayLogo}
+                alt={awayTeam}
+                loading="lazy"
+                className="w-6 h-6 object-contain"
+              />
+            )}
           </div>
         </div>
+
         {showOdds && (
           <div className="mt-2 flex flex-wrap gap-1 justify-end">
             {hasOdds ? (
               <>
                 {oddsData.h2h && (
                   <>
-                    <OddsButton label="1" oddsValue={oddsData.h2h.home} market="1X2_home" />
-                    <OddsButton label="X" oddsValue={oddsData.h2h.draw} market="1X2_draw" />
-                    <OddsButton label="2" oddsValue={oddsData.h2h.away} market="1X2_away" />
+                    <OddsButton
+                      label="1"
+                      oddsValue={oddsData.h2h.home}
+                      market="1X2_home"
+                    />
+                    <OddsButton
+                      label="X"
+                      oddsValue={oddsData.h2h.draw}
+                      market="1X2_draw"
+                    />
+                    <OddsButton
+                      label="2"
+                      oddsValue={oddsData.h2h.away}
+                      market="1X2_away"
+                    />
                   </>
                 )}
                 {oddsData.overUnder && (
-                  <OddsButton label="O/U" oddsValue={oddsData.overUnder.over} market="over" />
+                  <OddsButton
+                    label="O/U"
+                    oddsValue={oddsData.overUnder.over}
+                    market="over"
+                  />
                 )}
               </>
             ) : (
