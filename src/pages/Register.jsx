@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
 import { Link, useNavigate } from 'react-router-dom'
 import { countries, defaultCountry } from '../data/countries'
+import { convertFromGHS } from '../utils/currency'
 import supabase from '../lib/supabase'
 
 const Register = () => {
@@ -53,19 +54,24 @@ const Register = () => {
         return
       }
 
-      // 2. Handle referral code if provided
-      let referredByUser = null
-      const BONUS_AMOUNT = 20 // GHS 20 bonus for each
+      // 2. Handle referral code (if provided)
+      const REFERRAL_BONUS_GHS = 50 // 50 GHS bonus
 
       if (referralCodeParam) {
         const { data: referrer, error: refError } = await supabase
           .from('users')
-          .select('id')
+          .select('id, currency')
           .eq('referral_code', referralCodeParam.toUpperCase())
           .single()
 
         if (!refError && referrer) {
-          referredByUser = referrer.id
+          // Get currencies
+          const referrerCurrency = referrer.currency || 'GHS'
+          const refereeCurrency = selectedCountry.currency || 'GHS'
+
+          // Convert bonus to each user's currency
+          const referrerBonus = await convertFromGHS(REFERRAL_BONUS_GHS, referrerCurrency)
+          const refereeBonus = await convertFromGHS(REFERRAL_BONUS_GHS, refereeCurrency)
 
           // Update the new user's referred_by field
           await supabase
@@ -77,8 +83,8 @@ const Register = () => {
           await supabase
             .from('referral_earnings')
             .insert([
-              { referrer_id: referrer.id, referee_id: userId, bonus_amount: BONUS_AMOUNT, status: 'completed' },
-              { referrer_id: userId, referee_id: referrer.id, bonus_amount: BONUS_AMOUNT, status: 'completed' },
+              { referrer_id: referrer.id, referee_id: userId, bonus_amount: referrerBonus, status: 'completed' },
+              { referrer_id: userId, referee_id: referrer.id, bonus_amount: refereeBonus, status: 'completed' },
             ])
 
           // Credit referrer
@@ -89,7 +95,7 @@ const Register = () => {
             .single()
           await supabase
             .from('balances')
-            .update({ available: (referrerBalance?.available || 0) + BONUS_AMOUNT })
+            .update({ available: (referrerBalance?.available || 0) + referrerBonus })
             .eq('user_id', referrer.id)
 
           // Credit referee (new user)
@@ -100,7 +106,7 @@ const Register = () => {
             .single()
           await supabase
             .from('balances')
-            .update({ available: (refereeBalance?.available || 0) + BONUS_AMOUNT })
+            .update({ available: (refereeBalance?.available || 0) + refereeBonus })
             .eq('user_id', userId)
         }
       }
@@ -124,7 +130,9 @@ const Register = () => {
             .maybeSingle()
 
           if (!redeemed) {
-            // Credit bonus (converted to user's currency would be ideal, but we'll keep simple)
+            // Convert promo bonus to user's currency
+            const promoBonusInUserCurrency = await convertFromGHS(promo.bonus_amount, selectedCountry.currency || 'GHS')
+
             const { data: currentBalance } = await supabase
               .from('balances')
               .select('available')
@@ -133,7 +141,7 @@ const Register = () => {
 
             await supabase
               .from('balances')
-              .update({ available: (currentBalance?.available || 0) + promo.bonus_amount })
+              .update({ available: (currentBalance?.available || 0) + promoBonusInUserCurrency })
               .eq('user_id', userId)
 
             await supabase
@@ -141,7 +149,7 @@ const Register = () => {
               .insert({
                 user_id: userId,
                 promo_code_id: promo.id,
-                bonus_amount: promo.bonus_amount,
+                bonus_amount: promoBonusInUserCurrency,
               })
 
             await supabase
@@ -173,6 +181,7 @@ const Register = () => {
       <h1 className="text-3xl font-bold text-white text-center mb-6">Join BetZone</h1>
       <div className="bg-card rounded-2xl p-6 border border-white/5">
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* ... existing fields ... */}
           <div>
             <label className="text-sm text-gray-400 block mb-1">Full Name</label>
             <input
