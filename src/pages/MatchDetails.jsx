@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useMatchEngine } from '../context/MatchEngineContext'
 import { useBet } from '../context/BetContext'
 
-// ✅ Helper functions for letter logos
+// Helper functions for letter logos
 const getTeamColor = (name) => {
   const colors = [
     'bg-blue-500', 'bg-red-500', 'bg-green-500', 'bg-yellow-500',
@@ -40,7 +40,7 @@ const MatchDetails = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const { addSelection } = useBet()
-  const { customMatches } = useMatchEngine()
+  const { customMatches, matchHistory } = useMatchEngine()
 
   useEffect(() => {
     const isCustom = id.toString().startsWith('custom_')
@@ -52,27 +52,34 @@ const MatchDetails = () => {
       return
     }
 
-    const customMatch = customMatches.find(m => m.id === customId)
-    if (!customMatch) {
+    // ✅ Search in both customMatches and matchHistory
+    let foundMatch = customMatches.find(m => m.id === customId)
+    let isArchived = false
+    if (!foundMatch) {
+      foundMatch = matchHistory.find(m => m.id === customId)
+      isArchived = true
+    }
+
+    if (!foundMatch) {
       setError('Match not found')
       setLoading(false)
       return
     }
 
-    const isLive = customMatch.status === 'live'
-    const isFinished = customMatch.status === 'finished'
-    const elapsed = customMatch.elapsed || 0
+    const isLive = foundMatch.status === 'live'
+    const isFinished = foundMatch.status === 'finished' || foundMatch.status === 'archived'
+    const elapsed = foundMatch.elapsed || 0
     const isHalfTime = elapsed === 2700
 
     const matchData = {
       fixture: {
-        id: `custom_${customMatch.id}`,
+        id: `custom_${foundMatch.id}`,
         status: {
           short: isFinished ? 'FT' : isHalfTime ? 'HT' : isLive ? 'LIVE' : 'NS',
           elapsed: elapsed,
           long: isFinished ? 'Finished' : isHalfTime ? 'Half-time' : isLive ? 'Live' : 'Not Started',
         },
-        date: customMatch.startTime,
+        date: foundMatch.startTime,
         venue: {
           name: 'Custom Match',
           city: 'BetZone',
@@ -80,29 +87,31 @@ const MatchDetails = () => {
       },
       teams: {
         home: {
-          name: customMatch.homeTeam,
+          name: foundMatch.homeTeam,
           logo: null,
         },
         away: {
-          name: customMatch.awayTeam,
+          name: foundMatch.awayTeam,
           logo: null,
         },
       },
       league: {
-        name: customMatch.league || 'Custom League',
+        name: foundMatch.league || 'Custom League',
         logo: null,
       },
       goals: {
-        home: customMatch.goals?.home || 0,
-        away: customMatch.goals?.away || 0,
+        home: foundMatch.goals?.home || 0,
+        away: foundMatch.goals?.away || 0,
       },
       isCustom: true,
-      customMatch: customMatch,
+      isArchived: isArchived,
+      isFinished: isFinished,
+      customMatch: foundMatch,
     }
 
     setMatch(matchData)
     setLoading(false)
-  }, [id, customMatches])
+  }, [id, customMatches, matchHistory])
 
   const handleAddBet = (market, oddsValue, label) => {
     addSelection(id, market, oddsValue, label)
@@ -166,12 +175,17 @@ const MatchDetails = () => {
   return (
     <div className="py-4 space-y-6">
       <div className="bg-card rounded-lg p-4 border border-white/5">
+        {/* Match header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-400">{match.league.name}</span>
+            {match.isArchived && (
+              <span className="text-xs bg-gray-600/30 text-gray-400 px-2 py-0.5 rounded">Archived</span>
+            )}
           </div>
           <span className="text-xs text-gray-500">{match.fixture.venue.name}</span>
         </div>
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <TeamLogo name={match.teams.home.name} logo={match.teams.home.logo} className="w-12 h-12" />
@@ -179,8 +193,10 @@ const MatchDetails = () => {
               <div className="font-bold text-lg">{match.teams.home.name}</div>
               {isLive && <div className="text-sm font-mono text-red-500">● LIVE</div>}
               {isHalfTime && <div className="text-sm font-mono text-yellow-400">⏱️ HT</div>}
+              {isFinished && <div className="text-sm font-mono text-green-400">✓ FT</div>}
             </div>
           </div>
+
           <div className="text-center">
             {isHalfTime ? (
               <div className="text-2xl font-bold text-yellow-400">HT</div>
@@ -193,20 +209,23 @@ const MatchDetails = () => {
             )}
             {isFinished && <div className="text-xs text-gray-400">Full Time</div>}
           </div>
+
           <div className="flex items-center gap-3">
             <div>
               <div className="font-bold text-lg text-right">{match.teams.away.name}</div>
               {isLive && <div className="text-sm font-mono text-red-500">● LIVE</div>}
               {isHalfTime && <div className="text-sm font-mono text-yellow-400">⏱️ HT</div>}
+              {isFinished && <div className="text-sm font-mono text-green-400">✓ FT</div>}
             </div>
             <TeamLogo name={match.teams.away.name} logo={match.teams.away.logo} className="w-12 h-12" />
           </div>
         </div>
+
         <div className="text-xs text-gray-500 mt-2 text-center">
           {match.fixture.status.long} • {match.fixture.venue.city}
         </div>
 
-        {/* Half-time score display */}
+        {/* Half-time score */}
         {match.isCustom && match.customMatch?.halftimeScore && (
           <div className="mt-2 p-2 bg-dark/50 rounded-lg text-center">
             <div className="text-xs text-gray-400">Half-time Score</div>
@@ -216,6 +235,7 @@ const MatchDetails = () => {
           </div>
         )}
 
+        {/* Goal timeline */}
         {match.isCustom && match.customMatch?.goalTimeline && match.customMatch.goalTimeline.length > 0 && (
           <div className="mt-2 p-2 bg-dark/50 rounded-lg">
             <div className="text-xs text-gray-400 mb-1">⚽ Goal Timeline</div>
@@ -230,67 +250,74 @@ const MatchDetails = () => {
         )}
       </div>
 
+      {/* Markets section */}
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-white">Markets</h3>
 
-        {!oddsData ? (
-          <div className="bg-card rounded-lg p-4 text-center text-gray-400 border border-white/5">
-            Odds are not configured for this custom match.
+        {isFinished ? (
+          <div className="bg-card rounded-lg p-4 text-center border border-white/5">
+            <p className="text-gray-400">Match finished – no active odds available.</p>
           </div>
         ) : (
-          <>
-            {/* 1X2 */}
-            {oddsData.h2h && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Match Winner (1X2)</div>
-                <div className="flex gap-2 flex-wrap">
-                  <OddsButton label={match.teams.home.name} oddsValue={oddsData.h2h.home} market="1X2_home" />
-                  <OddsButton label="Draw" oddsValue={oddsData.h2h.draw} market="1X2_draw" />
-                  <OddsButton label={match.teams.away.name} oddsValue={oddsData.h2h.away} market="1X2_away" />
+          !oddsData ? (
+            <div className="bg-card rounded-lg p-4 text-center text-gray-400 border border-white/5">
+              Odds are not configured for this custom match.
+            </div>
+          ) : (
+            <>
+              {/* 1X2 */}
+              {oddsData.h2h && (
+                <div className="bg-card rounded-lg p-4 border border-white/5">
+                  <div className="text-sm text-gray-400 mb-2">Match Winner (1X2)</div>
+                  <div className="flex gap-2 flex-wrap">
+                    <OddsButton label={match.teams.home.name} oddsValue={oddsData.h2h.home} market="1X2_home" />
+                    <OddsButton label="Draw" oddsValue={oddsData.h2h.draw} market="1X2_draw" />
+                    <OddsButton label={match.teams.away.name} oddsValue={oddsData.h2h.away} market="1X2_away" />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Over/Under */}
-            {Object.keys(oddsData.overUnder || {}).length > 0 && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Over / Under</div>
-                <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(oddsData.overUnder).map(([line, odds]) => (
-                    <div key={line} className="flex gap-2 items-center">
-                      <span className="text-xs text-white w-8">O{line}</span>
-                      <OddsButton label="Over" oddsValue={odds.over} market={`over_${line}`} />
-                      <OddsButton label="Under" oddsValue={odds.under} market={`under_${line}`} />
-                    </div>
-                  ))}
+              {/* Over/Under */}
+              {Object.keys(oddsData.overUnder || {}).length > 0 && (
+                <div className="bg-card rounded-lg p-4 border border-white/5">
+                  <div className="text-sm text-gray-400 mb-2">Over / Under</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {Object.entries(oddsData.overUnder).map(([line, odds]) => (
+                      <div key={line} className="flex gap-2 items-center">
+                        <span className="text-xs text-white w-8">O{line}</span>
+                        <OddsButton label="Over" oddsValue={odds.over} market={`over_${line}`} />
+                        <OddsButton label="Under" oddsValue={odds.under} market={`under_${line}`} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Correct Score */}
-            {Object.keys(oddsData.correctScore || {}).length > 0 && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Correct Score</div>
-                <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(oddsData.correctScore).map(([score, odds]) => (
-                    <OddsButton key={score} label={score} oddsValue={odds} market={`cs_${score}`} />
-                  ))}
+              {/* Correct Score */}
+              {Object.keys(oddsData.correctScore || {}).length > 0 && (
+                <div className="bg-card rounded-lg p-4 border border-white/5">
+                  <div className="text-sm text-gray-400 mb-2">Correct Score</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {Object.entries(oddsData.correctScore).map(([score, odds]) => (
+                      <OddsButton key={score} label={score} oddsValue={odds} market={`cs_${score}`} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* HT/FT */}
-            {Object.keys(oddsData.htft || {}).length > 0 && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Half Time / Full Time</div>
-                <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(oddsData.htft).map(([key, odds]) => (
-                    <OddsButton key={key} label={key} oddsValue={odds} market={`htft_${key}`} />
-                  ))}
+              {/* HT/FT */}
+              {Object.keys(oddsData.htft || {}).length > 0 && (
+                <div className="bg-card rounded-lg p-4 border border-white/5">
+                  <div className="text-sm text-gray-400 mb-2">Half Time / Full Time</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {Object.entries(oddsData.htft).map(([key, odds]) => (
+                      <OddsButton key={key} label={key} oddsValue={odds} market={`htft_${key}`} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
+              )}
+            </>
+          )
         )}
       </div>
     </div>
