@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
 import { Link, useNavigate } from 'react-router-dom'
 import { countries, defaultCountry } from '../data/countries'
-import { convertFromGHS } from '../utils/currency'
 import supabase from '../lib/supabase'
 
 const Register = () => {
@@ -17,6 +16,15 @@ const Register = () => {
   const [loading, setLoading] = useState(false)
   const { signUp, user } = useSupabase()
   const navigate = useNavigate()
+
+  // Get referral code from URL
+  const [referralCodeParam, setReferralCodeParam] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const ref = params.get('ref')
+    if (ref) setReferralCodeParam(ref)
+  }, [])
 
   useEffect(() => {
     if (user) navigate('/')
@@ -38,113 +46,123 @@ const Register = () => {
         return
       }
 
-      // 2. If promo code provided, redeem it
-      if (promoCode.trim()) {
-        const userId = result.user?.id
-        if (userId) {
-          await redeemPromoCode(userId, promoCode.trim().toUpperCase(), selectedCountry.currency)
+      const userId = result.user?.id
+      if (!userId) {
+        setError('User ID not found')
+        setLoading(false)
+        return
+      }
+
+      // 2. Handle referral code if provided
+      let referredByUser = null
+      const BONUS_AMOUNT = 20 // GHS 20 bonus for each
+
+      if (referralCodeParam) {
+        const { data: referrer, error: refError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('referral_code', referralCodeParam.toUpperCase())
+          .single()
+
+        if (!refError && referrer) {
+          referredByUser = referrer.id
+
+          // Update the new user's referred_by field
+          await supabase
+            .from('users')
+            .update({ referred_by: referrer.id })
+            .eq('id', userId)
+
+          // Create referral earning records
+          await supabase
+            .from('referral_earnings')
+            .insert([
+              { referrer_id: referrer.id, referee_id: userId, bonus_amount: BONUS_AMOUNT, status: 'completed' },
+              { referrer_id: userId, referee_id: referrer.id, bonus_amount: BONUS_AMOUNT, status: 'completed' },
+            ])
+
+          // Credit referrer
+          const { data: referrerBalance } = await supabase
+            .from('balances')
+            .select('available')
+            .eq('user_id', referrer.id)
+            .single()
+          await supabase
+            .from('balances')
+            .update({ available: (referrerBalance?.available || 0) + BONUS_AMOUNT })
+            .eq('user_id', referrer.id)
+
+          // Credit referee (new user)
+          const { data: refereeBalance } = await supabase
+            .from('balances')
+            .select('available')
+            .eq('user_id', userId)
+            .single()
+          await supabase
+            .from('balances')
+            .update({ available: (refereeBalance?.available || 0) + BONUS_AMOUNT })
+            .eq('user_id', userId)
         }
       }
 
-      // 3. Redirect to login with success message
+      // 3. Handle promo code (if any)
+      if (promoCode.trim()) {
+        const { data: promo, error: promoError } = await supabase
+          .from('promo_codes')
+          .select('*')
+          .eq('code', promoCode.trim().toUpperCase())
+          .eq('active', true)
+          .single()
+
+        if (!promoError && promo) {
+          // Check if already redeemed
+          const { data: redeemed } = await supabase
+            .from('user_promo_redemptions')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('promo_code_id', promo.id)
+            .maybeSingle()
+
+          if (!redeemed) {
+            // Credit bonus (converted to user's currency would be ideal, but we'll keep simple)
+            const { data: currentBalance } = await supabase
+              .from('balances')
+              .select('available')
+              .eq('user_id', userId)
+              .single()
+
+            await supabase
+              .from('balances')
+              .update({ available: (currentBalance?.available || 0) + promo.bonus_amount })
+              .eq('user_id', userId)
+
+            await supabase
+              .from('user_promo_redemptions')
+              .insert({
+                user_id: userId,
+                promo_code_id: promo.id,
+                bonus_amount: promo.bonus_amount,
+              })
+
+            await supabase
+              .from('promo_codes')
+              .update({ used_count: promo.used_count + 1 })
+              .eq('id', promo.id)
+
+            setPromoMessage(`🎉 Promo code redeemed!`)
+          }
+        } else {
+          setPromoMessage('Invalid or expired promo code')
+        }
+      }
+
+      // 4. Redirect to login
       navigate('/login', { state: { message: 'Registration successful! Please login.' } })
     } catch (err) {
+      console.error(err)
       setError(err.message || 'Registration failed')
     } finally {
       setLoading(false)
-    }
-  }
-
-  // Helper to redeem promo code after registration
-  const redeemPromoCode = async (userId, code, userCurrency) => {
-    try {
-      // 1. Look up promo code
-      const { data: promo, error: promoError } = await supabase
-        .from('promo_codes')
-        .select('*')
-        .eq('code', code)
-        .eq('active', true)
-        .single()
-
-      if (promoError || !promo) {
-        setPromoMessage('Invalid or expired promo code')
-        return
-      }
-
-      // 2. Check if already redeemed by this user
-      const { data: redeemed, error: redeemCheck } = await supabase
-        .from('user_promo_redemptions')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('promo_code_id', promo.id)
-        .maybeSingle()
-
-      if (redeemed) {
-        setPromoMessage('You have already redeemed this code')
-        return
-      }
-
-      // 3. Check max uses
-      if (promo.max_uses && promo.used_count >= promo.max_uses) {
-        setPromoMessage('This promo code has reached its limit')
-        return
-      }
-
-      // 4. Check expiry
-      if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
-        setPromoMessage('This promo code has expired')
-        return
-      }
-
-      // 5. Convert bonus amount to user's currency
-      const bonusInGHS = promo.bonus_amount
-      const convertedBonus = await convertFromGHS(bonusInGHS, userCurrency)
-
-      // 6. Credit user's available balance
-      const { data: currentBalance, error: fetchError } = await supabase
-        .from('balances')
-        .select('available')
-        .eq('user_id', userId)
-        .single()
-
-      if (fetchError) throw fetchError
-
-      const newAvailable = (currentBalance?.available || 0) + convertedBonus
-      await supabase
-        .from('balances')
-        .update({ available: newAvailable })
-        .eq('user_id', userId)
-
-      // 7. Log redemption
-      await supabase
-        .from('user_promo_redemptions')
-        .insert({
-          user_id: userId,
-          promo_code_id: promo.id,
-          bonus_amount: convertedBonus,
-        })
-
-      // 8. Increment used count
-      await supabase
-        .from('promo_codes')
-        .update({ used_count: promo.used_count + 1 })
-        .eq('id', promo.id)
-
-      // 9. Log transaction
-      await supabase
-        .from('transactions')
-        .insert({
-          user_id: userId,
-          type: 'bonus',
-          amount: convertedBonus,
-          description: `Promo code: ${promo.code} (converted from ${bonusInGHS} GHS)`,
-          status: 'completed',
-        })
-
-      setPromoMessage(`🎉 Promo code redeemed! +${userCurrency} ${convertedBonus.toFixed(2)}`)
-    } catch (err) {
-      console.error('Promo redemption error:', err)
-      setPromoMessage('Failed to redeem promo code')
     }
   }
 

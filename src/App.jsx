@@ -23,6 +23,7 @@ import MyBets from './pages/MyBets'
 import AdminDashboard from './pages/AdminDashboard'
 import Support from './pages/Support'
 import Terms from './pages/Terms'
+import Referral from './pages/Referral'  // ✅ Import Referral page
 
 function App() {
   return (
@@ -47,6 +48,7 @@ function App() {
                       <Route path="/admin" element={<AdminDashboard />} />
                       <Route path="/support" element={<Support />} />
                       <Route path="/terms" element={<Terms />} />
+                      <Route path="/referral" element={<Referral />} />  {/* ✅ Add referral route */}
                     </Routes>
                   </Layout>
                 </SupportProvider>

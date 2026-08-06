@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useSupabase } from '../context/SupabaseContext'
-import { User, Settings, HelpCircle, LogOut, Shield, MessageCircle, FileText } from 'lucide-react'
+import { User, Settings, HelpCircle, LogOut, Shield, MessageCircle, FileText, Gift } from 'lucide-react'
 
 const Menu = () => {
   const { user, signOut } = useSupabase()
@@ -9,12 +9,12 @@ const Menu = () => {
   const menuItems = [
     { icon: User, label: 'Profile', path: '/profile' },
     { icon: MessageCircle, label: 'Support', path: '/support' },
+    { icon: Gift, label: 'Refer & Earn', path: '/referral' },
     { icon: FileText, label: 'Terms & Conditions', path: '/terms' },
     { icon: Settings, label: 'Settings', path: '/profile' },
     { icon: HelpCircle, label: 'About', path: '/profile' },
   ]
 
-  // 🔒 Only add Admin Dashboard if user is admin
   if (isAdmin) {
     menuItems.push({ icon: Shield, label: 'Admin Dashboard', path: '/admin' })
   }
