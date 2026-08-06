@@ -11,38 +11,29 @@ import { Plus, Minus, RefreshCw, Gift } from 'lucide-react'
 import supabase from '../lib/supabase'
 
 const Wallet = () => {
-  const { user, refreshBalance, loading } = useSupabase()
+  const { user, refreshBalance, balance: supabaseBalance, loading } = useSupabase()
   const { depositCount, totalDeposited, transactions } = useWallet()
   const [showDeposit, setShowDeposit] = useState(false)
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [localBalance, setLocalBalance] = useState({ available: 0, withdrawable: 0 })
   const [promoCode, setPromoCode] = useState('')
   const [redeeming, setRedeeming] = useState(false)
   const [promoMessage, setPromoMessage] = useState('')
   const { showNotification } = useNotification()
 
   const currency = user?.currency || 'GHS'
-  const canWithdraw = depositCount >= 3 && localBalance.withdrawable > 0
+  const canWithdraw = depositCount >= 3 && supabaseBalance?.withdrawable > 0
 
-  const fetchBalance = async () => {
-    if (!user?.id) return
-    try {
-      const bal = await walletService.getBalance(user.id)
-      setLocalBalance(bal || { available: 0, withdrawable: 0 })
-      await refreshBalance()
-    } catch (err) {
-      console.error('Failed to fetch balance:', err)
-    }
-  }
-
+  // Load balance on mount and when user changes
   useEffect(() => {
-    fetchBalance()
-  }, [user?.id])
+    if (user) {
+      refreshBalance()
+    }
+  }, [user])
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await fetchBalance()
+    await refreshBalance()
     setRefreshing(false)
   }
 
@@ -67,7 +58,7 @@ const Wallet = () => {
         return
       }
 
-      // ✅ Fixed expiry check – compare only the date (year, month, day)
+      // Expiry check (date only)
       if (promo.expires_at) {
         const expiryDate = new Date(promo.expires_at)
         const today = new Date()
@@ -107,7 +98,7 @@ const Wallet = () => {
       const bonusInGHS = promo.bonus_amount
       const convertedBonus = await convertFromGHS(bonusInGHS, user.currency || 'GHS')
 
-      // Credit the user
+      // Credit the user's available balance
       const currentBalance = await walletService.getBalance(user.id)
       const newAvailable = (currentBalance?.available || 0) + convertedBonus
       await supabase
@@ -142,7 +133,8 @@ const Wallet = () => {
       showNotification(`🎉 Promo code redeemed! +${currency} ${convertedBonus.toFixed(2)}`, 'success')
       setPromoCode('')
       setPromoMessage('')
-      await fetchBalance()
+      // ✅ Refresh balance to update UI
+      await refreshBalance()
     } catch (err) {
       console.error(err)
       setPromoMessage('Failed to redeem promo code')
@@ -150,8 +142,6 @@ const Wallet = () => {
       setRedeeming(false)
     }
   }
-
-  const displayBalance = localBalance
 
   if (loading) {
     return (
@@ -190,13 +180,13 @@ const Wallet = () => {
         <div className="bg-card rounded-lg p-4 border border-primary/20">
           <div className="text-sm text-gray-400">Available Balance</div>
           <div className="text-2xl font-bold text-green-400">
-            {currency} {displayBalance?.available?.toFixed(2) || '0.00'}
+            {currency} {supabaseBalance?.available?.toFixed(2) || '0.00'}
           </div>
         </div>
         <div className="bg-card rounded-lg p-4 border border-yellow-500/20">
           <div className="text-sm text-gray-400">Withdrawable</div>
           <div className="text-2xl font-bold text-yellow-400">
-            {currency} {displayBalance?.withdrawable?.toFixed(2) || '0.00'}
+            {currency} {supabaseBalance?.withdrawable?.toFixed(2) || '0.00'}
           </div>
         </div>
       </div>
