@@ -19,7 +19,8 @@ const Navbar = () => {
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              {balance && (
+              {/* ✅ Show balance ONLY for non-admin users */}
+              {!isAdmin && balance && (
                 <Link to="/wallet" className="text-sm text-green-400 hover:text-green-300 flex items-center gap-1 bg-green-500/10 px-2 py-1 rounded-lg">
                   <Wallet size={16} />
                   <span className="font-bold">{balance.available?.toFixed(2) || '0.00'}</span>
