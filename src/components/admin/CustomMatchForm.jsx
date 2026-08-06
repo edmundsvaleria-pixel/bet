@@ -5,15 +5,15 @@ const CustomMatchForm = () => {
   const [homeTeam, setHomeTeam] = useState('')
   const [awayTeam, setAwayTeam] = useState('')
   const [league, setLeague] = useState('')
-  // ✅ Auto‑populate start time (current time + 30 minutes)
   const getDefaultStartTime = () => {
     const now = new Date()
     now.setMinutes(now.getMinutes() + 30)
-    return now.toISOString().slice(0, 16) // format: YYYY-MM-DDTHH:MM
+    return now.toISOString().slice(0, 16)
   }
   const [startTime, setStartTime] = useState(getDefaultStartTime)
   const [finalHomeScore, setFinalHomeScore] = useState('')
   const [finalAwayScore, setFinalAwayScore] = useState('')
+  // ✅ GOAL MINUTES FIELDS – add these
   const [homeGoalMinutes, setHomeGoalMinutes] = useState('')
   const [awayGoalMinutes, setAwayGoalMinutes] = useState('')
   const [oddsHome, setOddsHome] = useState('')
@@ -108,11 +108,12 @@ const CustomMatchForm = () => {
       markets,
       finalHomeScore: parseInt(finalHomeScore) || 0,
       finalAwayScore: parseInt(finalAwayScore) || 0,
+      // ✅ Pass goal minutes
       homeGoalMinutes: parseMinutes(homeGoalMinutes),
       awayGoalMinutes: parseMinutes(awayGoalMinutes),
     })
 
-    // Reset form (keep default start time)
+    // Reset form
     setHomeTeam('')
     setAwayTeam('')
     setLeague('')
@@ -206,7 +207,7 @@ const CustomMatchForm = () => {
           </div>
         </div>
 
-        {/* Goal Minutes */}
+        {/* ✅ GOAL MINUTES – NEW SECTION */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-400 block mb-1">Home Goal Minutes (optional)</label>
