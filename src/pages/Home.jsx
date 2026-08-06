@@ -8,12 +8,14 @@ import Hero from '../components/home/Hero'
 import HeroCarousel from '../components/home/HeroCarousel'
 import LoadingSkeleton from '../components/common/LoadingSkeleton'
 import EmptyState from '../components/common/EmptyState'
+import { Search, X } from 'lucide-react'
 
 const Home = () => {
   const [liveMatches, setLiveMatches] = useState([])
   const [upcomingMatches, setUpcomingMatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const { customMatches } = useMatchEngine()
   const { user } = useSupabase()
   const isAdmin = user?.role === 'admin'
@@ -30,15 +32,12 @@ const Home = () => {
           dates.push(d.toISOString().split('T')[0])
         }
 
-        // Fetch live matches and upcoming for multiple days
         const [liveData, ...upcomingData] = await Promise.all([
           getLiveFixtures(),
           ...dates.map(date => getFixturesByDate(date)),
         ])
 
-        // Combine all upcoming fixtures
         const allUpcomingRaw = upcomingData.flat()
-        // Remove duplicates by fixture id
         const upcomingMap = {}
         allUpcomingRaw.forEach(m => {
           if (!upcomingMap[m.fixture.id]) {
@@ -134,6 +133,29 @@ const Home = () => {
   const allLive = [...liveMatches, ...customLive]
   const allUpcoming = [...upcomingMatches, ...customUpcoming]
 
+  // 🔍 Search logic – filter only custom matches
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value)
+  }
+
+  const clearSearch = () => {
+    setSearchQuery('')
+  }
+
+  const getFilteredCustomMatches = () => {
+    if (!searchQuery.trim()) return []
+    const query = searchQuery.toLowerCase().trim()
+    return customMatches.filter(m => {
+      const home = (m.homeTeam || '').toLowerCase()
+      const away = (m.awayTeam || '').toLowerCase()
+      const league = (m.league || '').toLowerCase()
+      return home.includes(query) || away.includes(query) || league.includes(query)
+    }).map(customToMatchCard)
+  }
+
+  const filteredMatches = getFilteredCustomMatches()
+  const isSearching = searchQuery.trim().length > 0
+
   if (loading) {
     return (
       <div className="space-y-4 pb-4">
@@ -153,11 +175,73 @@ const Home = () => {
     )
   }
 
-  // ✅ Show carousel for logged-in users if there are upcoming matches
+  // Show search results if searching
+  if (isSearching) {
+    return (
+      <div className="space-y-4 pb-4">
+        {/* Search bar */}
+        <div className="flex items-center gap-2 bg-card rounded-lg p-2 border border-white/5">
+          <Search size={20} className="text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            placeholder="Search custom matches (team or league)..."
+            className="flex-1 bg-transparent text-white outline-none placeholder:text-gray-500"
+            autoFocus
+          />
+          {searchQuery && (
+            <button onClick={clearSearch} className="text-gray-400 hover:text-white">
+              <X size={20} />
+            </button>
+          )}
+        </div>
+
+        <h2 className="text-xl font-bold text-white">Search Results</h2>
+        {filteredMatches.length === 0 ? (
+          <EmptyState
+            icon="🔍"
+            title="No custom matches found"
+            message="Try a different search term."
+          />
+        ) : (
+          <div className="space-y-3">
+            {filteredMatches.map((match) => (
+              <MatchCard
+                key={match.fixture.id}
+                match={match}
+                isLive={match.customMatch?.status === 'live'}
+                showOdds={true}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Normal view
   const showCarousel = user && allUpcoming.length > 0
 
   return (
     <div className="space-y-6 pb-4">
+      {/* Search bar always visible */}
+      <div className="flex items-center gap-2 bg-card rounded-lg p-2 border border-white/5">
+        <Search size={20} className="text-gray-400" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={handleSearchChange}
+          placeholder="Search custom matches..."
+          className="flex-1 bg-transparent text-white outline-none placeholder:text-gray-500"
+        />
+        {searchQuery && (
+          <button onClick={clearSearch} className="text-gray-400 hover:text-white">
+            <X size={20} />
+          </button>
+        )}
+      </div>
+
       {showCarousel ? (
         <HeroCarousel matches={allUpcoming} />
       ) : (
