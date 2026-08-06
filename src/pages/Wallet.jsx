@@ -22,27 +22,14 @@ const Wallet = () => {
   const [promoMessage, setPromoMessage] = useState('')
   const { showNotification } = useNotification()
 
+  // ✅ Use the user's currency from their profile
   const currency = user?.currency || 'GHS'
 
-  // ✅ GUARD: If not logged in, show prompt to login/register
-  if (!user) {
-    return (
-      <div className="py-8 max-w-md mx-auto text-center">
-        <div className="bg-card rounded-2xl p-8 border border-white/5">
-          <h2 className="text-2xl font-bold text-white mb-4">Wallet</h2>
-          <p className="text-gray-400 mb-6">Please login or register to view your wallet and manage funds.</p>
-          <div className="flex gap-4 justify-center">
-            <a href="/login" className="bg-primary hover:bg-primary/80 text-white font-bold py-2 px-6 rounded-lg transition">
-              Login
-            </a>
-            <a href="/register" className="bg-accent hover:bg-yellow-400 text-dark font-bold py-2 px-6 rounded-lg transition">
-              Register
-            </a>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // ✅ Check if user can withdraw
+  const canWithdraw = depositCount >= 3 && localBalance.withdrawable > 0
+
+  // ✅ Get min withdrawal (converted to user's currency if needed)
+  const [minWithdrawal, setMinWithdrawal] = useState(10000)
 
   const fetchBalance = async () => {
     if (!user?.id) return
@@ -85,7 +72,7 @@ const Wallet = () => {
         return
       }
 
-      const { data: redeemed, error: redeemCheck } = await supabase
+      const { data: redeemed } = await supabase
         .from('user_promo_redemptions')
         .select('id')
         .eq('user_id', user.id)
@@ -136,7 +123,7 @@ const Wallet = () => {
           user_id: user.id,
           type: 'bonus',
           amount: convertedBonus,
-          description: `Promo code: ${promo.code} (converted from ${bonusInGHS} GHS)`,
+          description: `Promo code: ${promo.code}`,
           status: 'completed',
         })
 
@@ -163,19 +150,31 @@ const Wallet = () => {
     )
   }
 
+  // ✅ If not logged in, show prompt
+  if (!user) {
+    return (
+      <div className="py-8 max-w-md mx-auto text-center">
+        <div className="bg-card rounded-2xl p-8 border border-white/5">
+          <h2 className="text-2xl font-bold text-white mb-4">Wallet</h2>
+          <p className="text-gray-400 mb-6">Please login or register to view your wallet and manage funds.</p>
+          <div className="flex gap-4 justify-center">
+            <a href="/login" className="bg-primary hover:bg-primary/80 text-white font-bold py-2 px-6 rounded-lg transition">Login</a>
+            <a href="/register" className="bg-accent hover:bg-yellow-400 text-dark font-bold py-2 px-6 rounded-lg transition">Register</a>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="py-4 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-white">Wallet</h1>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="text-gray-400 hover:text-white transition"
-        >
+        <button onClick={handleRefresh} disabled={refreshing} className="text-gray-400 hover:text-white transition">
           <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
         </button>
       </div>
-      
+
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-card rounded-lg p-4 border border-primary/20">
           <div className="text-sm text-gray-400">Available Balance</div>
@@ -202,7 +201,7 @@ const Wallet = () => {
         </div>
       </div>
 
-      {/* Promo Code Redemption */}
+      {/* Promo Code */}
       <div className="bg-card rounded-lg p-4 border border-dashed border-yellow-500/40">
         <div className="flex items-center gap-2 mb-2">
           <Gift size={18} className="text-yellow-400" />
@@ -231,20 +230,31 @@ const Wallet = () => {
         )}
       </div>
 
+      {/* ✅ Withdraw button – disabled if conditions not met */}
       <div className="flex gap-4">
-        <button 
+        <button
           onClick={() => setShowDeposit(true)}
           className="flex-1 bg-primary hover:bg-primary/80 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"
         >
           <Plus size={20} /> Deposit
         </button>
-        <button 
+        <button
           onClick={() => setShowWithdraw(true)}
-          className="flex-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 font-bold py-3 rounded-lg flex items-center justify-center gap-2"
+          disabled={!canWithdraw}
+          className={`flex-1 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition ${
+            canWithdraw
+              ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400'
+              : 'bg-gray-600/30 text-gray-500 cursor-not-allowed'
+          }`}
         >
           <Minus size={20} /> Withdraw
         </button>
       </div>
+      {!canWithdraw && (
+        <p className="text-xs text-gray-500 text-center">
+          {depositCount < 3 ? `⚠️ Need ${3 - depositCount} more deposit(s) to withdraw` : '⚠️ No withdrawable balance'}
+        </p>
+      )}
 
       <div>
         <h3 className="text-lg font-bold text-white mb-3">Transaction History</h3>

@@ -9,7 +9,6 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState('form') // 'form' | 'pay_commission' | 'submitted'
-  const [commissionPaid, setCommissionPaid] = useState(false)
   const [commissionRef, setCommissionRef] = useState('')
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
@@ -18,15 +17,19 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
   const { settings } = useSystemSettings()
   const { showNotification } = useNotification()
 
+  // ✅ Use the user's currency
+  const displayCurrency = currency
+
   if (!isOpen) return null
 
   const val = parseFloat(amount)
   const commission = val * (settings.commissionRate / 100)
   const netAmount = val - commission
+  const minWithdrawal = settings.minWithdrawal || 10000
 
   const handleCommissionPayment = async () => {
-    if (isNaN(val) || val < settings.minWithdrawal) {
-      setError(`Minimum withdrawal is ${currency} ${settings.minWithdrawal}`)
+    if (isNaN(val) || val < minWithdrawal) {
+      setError(`Minimum withdrawal is ${displayCurrency} ${minWithdrawal}`)
       return
     }
     if (val > balance.withdrawable) {
@@ -38,7 +41,6 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
       return
     }
 
-    // Show commission payment step
     setStep('pay_commission')
     setError('')
   }
@@ -49,9 +51,7 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
 
     try {
       const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY
-      if (!publicKey) {
-        throw new Error('Paystack public key not configured.')
-      }
+      if (!publicKey) throw new Error('Paystack public key not configured.')
 
       const email = user?.email || 'user@example.com'
       const amountInKobo = Math.round(commission * 100)
@@ -60,7 +60,7 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
         key: publicKey,
         email: email,
         amount: amountInKobo,
-        currency: currency,
+        currency: displayCurrency,
         ref: `COMMISSION-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         metadata: {
           custom_fields: [
@@ -70,16 +70,11 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
         },
         callback: function(response) {
           const reference = response.reference
-          console.log('Commission paid! Reference:', reference)
           setCommissionRef(reference)
-          setCommissionPaid(true)
           setStep('submitted')
-          
-          // Now submit the withdrawal request with commission proof
-          submitWithdrawal(reference)
-          
-          showNotification(`Commission of ${currency} ${commission.toFixed(2)} paid successfully!`, 'success')
+          showNotification(`Commission of ${displayCurrency} ${commission.toFixed(2)} paid successfully!`, 'success')
           setLoading(false)
+          submitWithdrawal(reference)
         },
         onClose: function() {
           showNotification('Commission payment cancelled.', 'warning')
@@ -106,7 +101,6 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
         setTimeout(() => {
           onClose()
           setStep('form')
-          setCommissionPaid(false)
           setCommissionRef('')
           setSuccessMsg('')
         }, 3000)
@@ -120,7 +114,6 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
     }
   }
 
-  // If step is 'submitted', show success message
   if (step === 'submitted') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -128,18 +121,13 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
         <div className="relative bg-card rounded-2xl p-6 max-w-md w-full mx-4 border border-white/10 shadow-2xl text-center">
           <div className="text-5xl mb-4">✅</div>
           <h3 className="text-xl font-bold text-white mb-2">Withdrawal Submitted</h3>
-          <p className="text-gray-400 text-sm">
-            Your withdrawal request has been submitted successfully.
-          </p>
-          <p className="text-xs text-gray-500 mt-2">
-            Commission Reference: {commissionRef}
-          </p>
+          <p className="text-gray-400 text-sm">Your withdrawal request has been submitted successfully.</p>
+          <p className="text-xs text-gray-500 mt-2">Commission Reference: {commissionRef}</p>
           {successMsg && <p className="text-green-400 text-sm mt-2">{successMsg}</p>}
           <button
             onClick={() => {
               onClose()
               setStep('form')
-              setCommissionPaid(false)
               setCommissionRef('')
               setSuccessMsg('')
             }}
@@ -165,41 +153,41 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
             {step === 'pay_commission' ? 'Pay Commission' : 'Withdraw Funds'}
           </h3>
           <p className="text-gray-400 text-sm">
-            {step === 'pay_commission' 
-              ? `Pay ${currency} ${commission.toFixed(2)} commission to proceed` 
-              : `${currency} ${balance.withdrawable?.toFixed(2) || '0.00'} withdrawable`}
+            {step === 'pay_commission'
+              ? `Pay ${displayCurrency} ${commission.toFixed(2)} commission to proceed`
+              : `${displayCurrency} ${balance.withdrawable?.toFixed(2) || '0.00'} withdrawable`}
           </p>
         </div>
 
         {step === 'form' ? (
           <div className="space-y-4">
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Amount ({currency})</label>
+              <label className="text-sm text-gray-400 block mb-1">Amount ({displayCurrency})</label>
               <input
                 type="number"
-                min={settings.minWithdrawal}
+                min={minWithdrawal}
                 step="100"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="w-full bg-dark border border-white/10 rounded-lg px-4 py-3 text-white text-lg focus:border-primary outline-none transition"
-                placeholder={`Min. ${settings.minWithdrawal}`}
+                placeholder={`Min. ${minWithdrawal}`}
               />
-              <p className="text-xs text-gray-500 mt-1">Minimum: {currency} {settings.minWithdrawal} | Commission: {settings.commissionRate}%</p>
+              <p className="text-xs text-gray-500 mt-1">Minimum: {displayCurrency} {minWithdrawal} | Commission: {settings.commissionRate}%</p>
             </div>
 
-            {val >= settings.minWithdrawal && (
+            {val >= minWithdrawal && (
               <div className="bg-dark/50 rounded-lg p-3 space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Withdrawable:</span>
-                  <span className="text-white font-bold">{currency} {val.toFixed(2)}</span>
+                  <span className="text-white font-bold">{displayCurrency} {val.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Commission ({settings.commissionRate}%):</span>
-                  <span className="text-red-400">-{currency} {commission.toFixed(2)}</span>
+                  <span className="text-red-400">-{displayCurrency} {commission.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold border-t border-white/10 pt-1">
                   <span className="text-gray-400">You receive:</span>
-                  <span className="text-green-400">{currency} {netAmount.toFixed(2)}</span>
+                  <span className="text-green-400">{displayCurrency} {netAmount.toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -208,7 +196,7 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
 
             <div className="text-xs text-gray-400 space-y-1">
               <p>• Deposits made: {depositCount || 0} (need at least 3)</p>
-              <p>• Withdrawable balance: {currency} {balance.withdrawable?.toFixed(2) || '0.00'}</p>
+              <p>• Withdrawable balance: {displayCurrency} {balance.withdrawable?.toFixed(2) || '0.00'}</p>
               {!canWithdraw() && <p className="text-yellow-400">⚠️ Withdrawal requirements not met</p>}
             </div>
 
@@ -224,8 +212,8 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
           <div className="space-y-4">
             <div className="bg-dark/50 rounded-lg p-4 text-center">
               <p className="text-gray-400 text-sm">Commission Amount</p>
-              <p className="text-2xl font-bold text-yellow-400">{currency} {commission.toFixed(2)}</p>
-              <p className="text-xs text-gray-500 mt-1">Withdrawal: {currency} {val.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-yellow-400">{displayCurrency} {commission.toFixed(2)}</p>
+              <p className="text-xs text-gray-500 mt-1">Withdrawal: {displayCurrency} {val.toFixed(2)}</p>
             </div>
 
             {error && <div className="text-red-400 text-sm">{error}</div>}
@@ -241,7 +229,7 @@ const WithdrawModal = ({ isOpen, onClose, currency = 'GHS' }) => {
                   Processing...
                 </>
               ) : (
-                `Pay ${currency} ${commission.toFixed(2)} with Paystack`
+                `Pay ${displayCurrency} ${commission.toFixed(2)} with Paystack`
               )}
             </button>
 
