@@ -16,6 +16,10 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
 
   if (!isOpen) return null
 
+  // ✅ Countries that support Mobile Money (by currency)
+  const mobileMoneyCurrencies = ['GHS', 'KES', 'NGN']
+  const isMobileMoneySupported = mobileMoneyCurrencies.includes(currency)
+
   const handleDeposit = async () => {
     const val = parseFloat(amount)
     if (isNaN(val) || val < settings.minDeposit) {
@@ -28,13 +32,30 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
 
     try {
       const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY
-      if (!publicKey) {
-        throw new Error('Paystack public key not configured.')
-      }
+      if (!publicKey) throw new Error('Paystack public key not configured.')
 
       const email = user?.email || 'user@example.com'
       const fullName = user?.name || 'BetZone User'
       const amountInKobo = val * 100
+
+      // 1️⃣ Build the channels array based on country support
+      let channels
+      if (isMobileMoneySupported) {
+        // Mobile Money only – user gets the simple prompt
+        channels = ['mobile_money']
+      } else {
+        // All channels – user sees full Paystack popup
+        channels = ['card', 'bank', 'ussd', 'mobile_money', 'qr', 'bank_transfer']
+      }
+
+      // 2️⃣ If Mobile Money is supported, include the user's phone number
+      const mobileMoneyPayload = {}
+      if (isMobileMoneySupported && user?.phone) {
+        // Paystack requires phone without "+" prefix, e.g., "233559326645"
+        mobileMoneyPayload.mobile_money = {
+          phone: user.phone.replace(/^\+/, ''),
+        }
+      }
 
       const handler = window.PaystackPop.setup({
         key: publicKey,
@@ -44,8 +65,10 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
         label: "BetZone Deposit",
         theme: {
           brandColor: '#2563EB',
-          logo: 'https://betwithus.netlify.app/logo.png',
+          logo: 'https://betzonepassion.vercel.app/logo.png',
         },
+        channels: channels, // 🔥 This controls what the user sees
+        ...mobileMoneyPayload,
         metadata: {
           custom_fields: [
             { display_name: "Full Name", variable_name: "full_name", value: fullName },
@@ -53,8 +76,6 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
           ]
         },
         ref: `BETZONE-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        channels: ['mobile_money'],
-        // ✅ Callback: Shows success message only. Webhook credits the wallet.
         callback: function(response) {
           const reference = response.reference
           console.log('Payment successful! Reference:', reference)
@@ -91,7 +112,11 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
         
         <div className="mb-4">
           <h3 className="text-xl font-bold text-white">Deposit Funds</h3>
-          <p className="text-gray-400 text-sm">Secured by Paystack</p>
+          <p className="text-gray-400 text-sm">
+            {isMobileMoneySupported 
+              ? 'Mobile Money (prompt will be sent to your phone)' 
+              : 'Choose your preferred payment method'}
+          </p>
         </div>
 
         <div className="space-y-4">
@@ -134,7 +159,7 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
                 Processing...
               </>
             ) : (
-              `Pay with Paystack (${currency})`
+              isMobileMoneySupported ? 'Pay with Mobile Money' : 'Pay with Paystack'
             )}
           </button>
 
@@ -143,9 +168,11 @@ const DepositModal = ({ isOpen, onClose, currency = 'GHS' }) => {
             Secured by Paystack
           </div>
 
-          <p className="text-xs text-gray-500 text-center">
-            You will be redirected to Paystack to complete payment.
-          </p>
+          {isMobileMoneySupported && (
+            <p className="text-xs text-gray-500 text-center">
+              A payment prompt will be sent to your phone. Authorize it with your PIN.
+            </p>
+          )}
         </div>
       </div>
     </div>

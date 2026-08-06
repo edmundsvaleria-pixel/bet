@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useSupabase } from '../../context/SupabaseContext'
 import { useNotification } from '../../context/NotificationContext'
 import ConfirmModal from '../common/ConfirmModal'
+import supabase from '../../lib/supabase'
 
 const UserList = () => {
   const [users, setUsers] = useState([])
+  const [balances, setBalances] = useState({})
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const { getAllUsers, adminUpdateUser, adminDeleteUser } = useSupabase()
@@ -13,13 +15,29 @@ const UserList = () => {
   const refreshUsers = async () => {
     const data = await getAllUsers()
     setUsers(data)
+    // Fetch balances for all users
+    if (data.length > 0) {
+      const userIds = data.map(u => u.id)
+      const { data: balanceData, error } = await supabase
+        .from('balances')
+        .select('user_id, available, withdrawable')
+        .in('user_id', userIds)
+      if (!error && balanceData) {
+        const balanceMap = {}
+        balanceData.forEach(b => {
+          balanceMap[b.user_id] = { available: b.available || 0, withdrawable: b.withdrawable || 0 }
+        })
+        setBalances(balanceMap)
+      } else {
+        console.warn('Failed to fetch balances:', error)
+      }
+    }
   }
 
   useEffect(() => {
     refreshUsers()
   }, [])
 
-  // Toggle active – deactivation revokes sessions instantly
   const handleToggleActive = async (email) => {
     const user = users.find(u => u.email === email)
     if (!user) return
@@ -27,26 +45,24 @@ const UserList = () => {
     const result = await adminUpdateUser(user.id, { active: newStatus })
     if (result.success) {
       refreshUsers()
-      showNotification(`User ${email} ${newStatus ? 'activated' : 'deactivated'} and logged out if inactive.`, 'success')
+      showNotification(`User ${email} ${newStatus ? 'activated' : 'deactivated'}`, 'success')
     } else {
       showNotification(result.error || 'Action failed', 'error')
     }
   }
 
-  // Change role (immediate update)
-  const handleChangeRole = async (email, newRole) => {
+  const handleChangeRole = async (email, role) => {
     const user = users.find(u => u.email === email)
     if (!user) return
-    const result = await adminUpdateUser(user.id, { role: newRole })
+    const result = await adminUpdateUser(user.id, { role })
     if (result.success) {
       refreshUsers()
-      showNotification(`User ${email} role changed to ${newRole}`, 'success')
+      showNotification(`User ${email} role changed to ${role}`, 'success')
     } else {
       showNotification(result.error || 'Action failed', 'error')
     }
   }
 
-  // Delete user (permanent)
   const handleDeleteUser = (email, name) => {
     setDeleteTarget({ email, name })
     setShowConfirm(true)
@@ -68,6 +84,10 @@ const UserList = () => {
     setShowConfirm(false)
   }
 
+  if (users.length === 0) {
+    return <div className="text-gray-400 text-center py-4">No users registered</div>
+  }
+
   return (
     <>
       <div className="overflow-x-auto">
@@ -80,60 +100,67 @@ const UserList = () => {
               <th className="text-left py-2 text-gray-400">Country</th>
               <th className="text-left py-2 text-gray-400">Role</th>
               <th className="text-left py-2 text-gray-400">Status</th>
+              <th className="text-left py-2 text-gray-400">Available</th>
+              <th className="text-left py-2 text-gray-400">Withdrawable</th>
               <th className="text-left py-2 text-gray-400">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.email} className="border-b border-white/5">
-                <td className="py-2 text-white">{u.name}</td>
-                <td className="py-2 text-white">{u.email}</td>
-                <td className="py-2 text-white">{u.phone || '-'}</td>
-                <td className="py-2 text-white">{u.country || '-'}</td>
-                <td className="py-2 text-white capitalize">{u.role}</td>
-                <td className="py-2">
-                  <span className={`text-xs px-2 py-0.5 rounded ${u.active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {u.active ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td className="py-2 flex gap-1 flex-wrap">
-                  <button
-                    onClick={() => handleToggleActive(u.email)}
-                    className={`text-xs px-2 py-1 rounded transition ${
-                      u.active
-                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white'
-                        : 'bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white'
-                    }`}
-                  >
-                    {u.active ? 'Deactivate' : 'Activate'}
-                  </button>
-                  {u.role !== 'admin' && (
+            {users.map((u) => {
+              const balance = balances[u.id] || { available: 0, withdrawable: 0 }
+              return (
+                <tr key={u.email} className="border-b border-white/5">
+                  <td className="py-2 text-white">{u.name}</td>
+                  <td className="py-2 text-white">{u.email}</td>
+                  <td className="py-2 text-white">{u.phone || '-'}</td>
+                  <td className="py-2 text-white">{u.country || '-'}</td>
+                  <td className="py-2 text-white capitalize">{u.role}</td>
+                  <td className="py-2">
+                    <span className={`text-xs px-2 py-0.5 rounded ${u.active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {u.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="py-2 text-green-400 font-mono">GHS {balance.available.toFixed(2)}</td>
+                  <td className="py-2 text-yellow-400 font-mono">GHS {balance.withdrawable.toFixed(2)}</td>
+                  <td className="py-2 flex gap-1 flex-wrap">
                     <button
-                      onClick={() => handleChangeRole(u.email, 'admin')}
-                      className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded hover:bg-yellow-500 hover:text-white transition"
+                      onClick={() => handleToggleActive(u.email)}
+                      className={`text-xs px-2 py-1 rounded ${
+                        u.active
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white'
+                          : 'bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white'
+                      } transition`}
                     >
-                      Make Admin
+                      {u.active ? 'Deactivate' : 'Activate'}
                     </button>
-                  )}
-                  {u.role === 'admin' && u.email !== 'admin@betzone.com' && (
-                    <button
-                      onClick={() => handleChangeRole(u.email, 'user')}
-                      className="text-xs bg-gray-500/20 text-gray-400 px-2 py-1 rounded hover:bg-gray-500 hover:text-white transition"
-                    >
-                      Remove Admin
-                    </button>
-                  )}
-                  {u.email !== 'admin@betzone.com' && (
-                    <button
-                      onClick={() => handleDeleteUser(u.email, u.name)}
-                      className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded hover:bg-red-500 hover:text-white transition"
-                    >
-                      🗑️ Delete
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+                    {u.role !== 'admin' && (
+                      <button
+                        onClick={() => handleChangeRole(u.email, 'admin')}
+                        className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded hover:bg-yellow-500 hover:text-white transition"
+                      >
+                        Make Admin
+                      </button>
+                    )}
+                    {u.role === 'admin' && u.email !== 'admin@betzone.com' && (
+                      <button
+                        onClick={() => handleChangeRole(u.email, 'user')}
+                        className="text-xs bg-gray-500/20 text-gray-400 px-2 py-1 rounded hover:bg-gray-500 hover:text-white transition"
+                      >
+                        Remove Admin
+                      </button>
+                    )}
+                    {u.email !== 'admin@betzone.com' && (
+                      <button
+                        onClick={() => handleDeleteUser(u.email, u.name)}
+                        className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded hover:bg-red-500 hover:text-white transition"
+                      >
+                        🗑️ Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
