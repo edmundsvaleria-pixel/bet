@@ -18,7 +18,6 @@ const Register = () => {
   const { signUp, user } = useSupabase()
   const navigate = useNavigate()
 
-  // Get referral code from URL
   const [referralCodeParam, setReferralCodeParam] = useState('')
 
   useEffect(() => {
@@ -54,9 +53,8 @@ const Register = () => {
         return
       }
 
-      // 2. Handle referral code (if provided)
-      const REFERRAL_BONUS_GHS = 50 // 50 GHS bonus
-
+      // 2. Handle referral (if any)
+      const REFERRAL_BONUS_GHS = 50
       if (referralCodeParam) {
         const { data: referrer, error: refError } = await supabase
           .from('users')
@@ -65,21 +63,17 @@ const Register = () => {
           .single()
 
         if (!refError && referrer) {
-          // Get currencies
           const referrerCurrency = referrer.currency || 'GHS'
           const refereeCurrency = selectedCountry.currency || 'GHS'
 
-          // Convert bonus to each user's currency
           const referrerBonus = await convertFromGHS(REFERRAL_BONUS_GHS, referrerCurrency)
           const refereeBonus = await convertFromGHS(REFERRAL_BONUS_GHS, refereeCurrency)
 
-          // Update the new user's referred_by field
           await supabase
             .from('users')
             .update({ referred_by: referrer.id })
             .eq('id', userId)
 
-          // Create referral earning records
           await supabase
             .from('referral_earnings')
             .insert([
@@ -87,7 +81,6 @@ const Register = () => {
               { referrer_id: userId, referee_id: referrer.id, bonus_amount: refereeBonus, status: 'completed' },
             ])
 
-          // Credit referrer
           const { data: referrerBalance } = await supabase
             .from('balances')
             .select('available')
@@ -98,7 +91,6 @@ const Register = () => {
             .update({ available: (referrerBalance?.available || 0) + referrerBonus })
             .eq('user_id', referrer.id)
 
-          // Credit referee (new user)
           const { data: refereeBalance } = await supabase
             .from('balances')
             .select('available')
@@ -130,34 +122,54 @@ const Register = () => {
             .maybeSingle()
 
           if (!redeemed) {
-            // Convert promo bonus to user's currency
-            const promoBonusInUserCurrency = await convertFromGHS(promo.bonus_amount, selectedCountry.currency || 'GHS')
+            // ✅ Fixed expiry check – compare only date
+            let isExpired = false
+            if (promo.expires_at) {
+              const expiryDate = new Date(promo.expires_at)
+              const today = new Date()
+              if (
+                expiryDate.getFullYear() < today.getFullYear() ||
+                (expiryDate.getFullYear() === today.getFullYear() && expiryDate.getMonth() < today.getMonth()) ||
+                (expiryDate.getFullYear() === today.getFullYear() && expiryDate.getMonth() === today.getMonth() && expiryDate.getDate() < today.getDate())
+              ) {
+                isExpired = true
+              }
+            }
 
-            const { data: currentBalance } = await supabase
-              .from('balances')
-              .select('available')
-              .eq('user_id', userId)
-              .single()
+            if (isExpired) {
+              setPromoMessage('This promo code has expired')
+            } else {
+              // Convert and credit
+              const promoBonusInUserCurrency = await convertFromGHS(promo.bonus_amount, selectedCountry.currency || 'GHS')
 
-            await supabase
-              .from('balances')
-              .update({ available: (currentBalance?.available || 0) + promoBonusInUserCurrency })
-              .eq('user_id', userId)
+              const { data: currentBalance } = await supabase
+                .from('balances')
+                .select('available')
+                .eq('user_id', userId)
+                .single()
 
-            await supabase
-              .from('user_promo_redemptions')
-              .insert({
-                user_id: userId,
-                promo_code_id: promo.id,
-                bonus_amount: promoBonusInUserCurrency,
-              })
+              await supabase
+                .from('balances')
+                .update({ available: (currentBalance?.available || 0) + promoBonusInUserCurrency })
+                .eq('user_id', userId)
 
-            await supabase
-              .from('promo_codes')
-              .update({ used_count: promo.used_count + 1 })
-              .eq('id', promo.id)
+              await supabase
+                .from('user_promo_redemptions')
+                .insert({
+                  user_id: userId,
+                  promo_code_id: promo.id,
+                  bonus_amount: promoBonusInUserCurrency,
+                })
 
-            setPromoMessage(`🎉 Promo code redeemed!`)
+              await supabase
+                .from('promo_codes')
+                .update({ used_count: promo.used_count + 1 })
+                .eq('id', promo.id)
+
+              setPromoMessage(`🎉 Promo code redeemed!`)
+            }
+          } else {
+            setPromoMessage('You have already redeemed this code')
           }
         } else {
           setPromoMessage('Invalid or expired promo code')
@@ -181,7 +193,6 @@ const Register = () => {
       <h1 className="text-3xl font-bold text-white text-center mb-6">Join BetZone</h1>
       <div className="bg-card rounded-2xl p-6 border border-white/5">
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ... existing fields ... */}
           <div>
             <label className="text-sm text-gray-400 block mb-1">Full Name</label>
             <input

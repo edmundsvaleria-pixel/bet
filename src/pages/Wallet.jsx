@@ -22,14 +22,8 @@ const Wallet = () => {
   const [promoMessage, setPromoMessage] = useState('')
   const { showNotification } = useNotification()
 
-  // ✅ Use the user's currency from their profile
   const currency = user?.currency || 'GHS'
-
-  // ✅ Check if user can withdraw
   const canWithdraw = depositCount >= 3 && localBalance.withdrawable > 0
-
-  // ✅ Get min withdrawal (converted to user's currency if needed)
-  const [minWithdrawal, setMinWithdrawal] = useState(10000)
 
   const fetchBalance = async () => {
     if (!user?.id) return
@@ -69,9 +63,26 @@ const Wallet = () => {
 
       if (promoError || !promo) {
         setPromoMessage('Invalid or expired promo code')
+        setRedeeming(false)
         return
       }
 
+      // ✅ Fixed expiry check – compare only the date (year, month, day)
+      if (promo.expires_at) {
+        const expiryDate = new Date(promo.expires_at)
+        const today = new Date()
+        if (
+          expiryDate.getFullYear() < today.getFullYear() ||
+          (expiryDate.getFullYear() === today.getFullYear() && expiryDate.getMonth() < today.getMonth()) ||
+          (expiryDate.getFullYear() === today.getFullYear() && expiryDate.getMonth() === today.getMonth() && expiryDate.getDate() < today.getDate())
+        ) {
+          setPromoMessage('This promo code has expired')
+          setRedeeming(false)
+          return
+        }
+      }
+
+      // Check if already redeemed
       const { data: redeemed } = await supabase
         .from('user_promo_redemptions')
         .select('id')
@@ -81,22 +92,22 @@ const Wallet = () => {
 
       if (redeemed) {
         setPromoMessage('You have already redeemed this code')
+        setRedeeming(false)
         return
       }
 
+      // Check max uses
       if (promo.max_uses && promo.used_count >= promo.max_uses) {
         setPromoMessage('This promo code has reached its limit')
+        setRedeeming(false)
         return
       }
 
-      if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
-        setPromoMessage('This promo code has expired')
-        return
-      }
-
+      // Convert bonus to user's currency
       const bonusInGHS = promo.bonus_amount
       const convertedBonus = await convertFromGHS(bonusInGHS, user.currency || 'GHS')
 
+      // Credit the user
       const currentBalance = await walletService.getBalance(user.id)
       const newAvailable = (currentBalance?.available || 0) + convertedBonus
       await supabase
@@ -104,6 +115,7 @@ const Wallet = () => {
         .update({ available: newAvailable })
         .eq('user_id', user.id)
 
+      // Log redemption
       await supabase
         .from('user_promo_redemptions')
         .insert({
@@ -150,7 +162,6 @@ const Wallet = () => {
     )
   }
 
-  // ✅ If not logged in, show prompt
   if (!user) {
     return (
       <div className="py-8 max-w-md mx-auto text-center">
@@ -230,7 +241,6 @@ const Wallet = () => {
         )}
       </div>
 
-      {/* ✅ Withdraw button – disabled if conditions not met */}
       <div className="flex gap-4">
         <button
           onClick={() => setShowDeposit(true)}
