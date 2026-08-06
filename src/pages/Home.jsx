@@ -15,11 +15,9 @@ const Home = () => {
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
-    // Simulate loading (custom matches are already in context)
     setLoading(false)
   }, [])
 
-  // Convert custom matches to MatchCard format
   const customToMatchCard = (match) => {
     const isLive = match.status === 'live'
     const isUpcoming = match.status === 'upcoming'
@@ -69,7 +67,6 @@ const Home = () => {
   const allLive = customLive
   const allUpcoming = customUpcoming
 
-  // Search logic
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value)
   }
@@ -101,7 +98,6 @@ const Home = () => {
     )
   }
 
-  // Search results (always show if searching)
   if (isSearching) {
     return (
       <div className="space-y-4 pb-4">
@@ -145,12 +141,9 @@ const Home = () => {
     )
   }
 
-  // ✅ Normal view – check if user is logged in and there are matches
   const showCarousel = user && allUpcoming.length > 0
   const showLive = allLive.length > 0
   const showMatches = showCarousel || showLive
-
-  // ✅ For logged-in users with no matches, show custom message
   const noMatchesMessage = user && !showMatches
 
   return (
@@ -172,28 +165,35 @@ const Home = () => {
         )}
       </div>
 
-      {/* ✅ If no matches and logged in, show custom message */}
       {noMatchesMessage ? (
-        <div className="bg-card rounded-2xl p-12 text-center border border-white/5">
-          <div className="text-6xl mb-4">📅</div>
+        // ✅ Premium Empty State
+        <div className="bg-card rounded-2xl p-12 text-center border border-white/5 shadow-lg">
+          <div className="flex justify-center mb-6">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+              <CalendarDays size={40} className="text-primary" />
+            </div>
+          </div>
           <h2 className="text-2xl font-bold text-white mb-2">No fixed games today</h2>
           <p className="text-gray-400 text-lg">Come back later for new matches</p>
           {isAdmin && (
-            <p className="text-xs text-gray-500 mt-4">
-              ⚡ Admin: Create a custom match to get started
-            </p>
+            <div className="mt-6">
+              <a
+                href="/admin"
+                className="inline-block bg-primary hover:bg-primary/80 text-white font-medium px-6 py-2 rounded-lg transition"
+              >
+                + Create Match
+              </a>
+            </div>
           )}
         </div>
       ) : (
         <>
-          {/* Carousel or Hero */}
           {showCarousel ? (
             <HeroCarousel matches={allUpcoming} />
           ) : (
             <Hero />
           )}
 
-          {/* Live Now section */}
           {showLive && (
             <section>
               <div className="flex justify-between items-center mb-3">
@@ -213,7 +213,6 @@ const Home = () => {
             </section>
           )}
 
-          {/* Upcoming section (only if carousel not shown) */}
           {!showCarousel && allUpcoming.length > 0 && (
             <section>
               <h2 className="text-xl font-bold text-white mb-3">📅 Upcoming Matches</h2>
