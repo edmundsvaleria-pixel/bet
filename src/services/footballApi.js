@@ -1,33 +1,34 @@
 // src/services/footballApi.js
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const BASE_URL = 'https://v3.football.api-sports.io'
+const API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY
 
-const getCached = (key) => {
-  const cached = localStorage.getItem(`football_${key}`)
-  if (!cached) return null
-  try {
-    const { data, timestamp } = JSON.parse(cached)
-    if (Date.now() - timestamp > CACHE_TTL) return null
-    return data
-  } catch { return null }
-}
-
-const setCache = (key, data) => {
-  localStorage.setItem(`football_${key}`, JSON.stringify({ data, timestamp: Date.now() }))
+// ✅ Use different proxy for local dev vs production
+const getProxyUrl = (endpoint) => {
+  if (import.meta.env.DEV) {
+    // Local development – use a public CORS proxy
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(`${BASE_URL}${endpoint}`)}`
+  } else {
+    // Production (Netlify) – use our Netlify Function
+    return `/.netlify/functions/footballProxy?endpoint=${encodeURIComponent(endpoint)}`
+  }
 }
 
 const fetchApi = async (endpoint) => {
-  const cacheKey = endpoint
-  const cached = getCached(cacheKey)
-  if (cached) {
-    console.log(`📦 Using cached: ${endpoint}`)
-    return cached
+  const url = getProxyUrl(endpoint)
+  console.log(`📡 Fetching via ${import.meta.env.DEV ? 'public proxy' : 'Netlify function'}:`, url)
+  
+  const response = await fetch(url, {
+    headers: import.meta.env.DEV ? { 'x-apisports-key': API_KEY } : {}
+  })
+  
+  if (!response.ok) {
+    const text = await response.text()
+    console.error('❌ Proxy error:', text)
+    throw new Error(`API error: ${response.status}`)
   }
-
-  const proxyUrl = `/.netlify/functions/footballProxy?endpoint=${encodeURIComponent(endpoint)}`
-  const response = await fetch(proxyUrl)
-  if (!response.ok) throw new Error(`API error: ${response.status}`)
+  
   const data = await response.json()
-  setCache(cacheKey, data)
+  console.log('✅ API Response:', data)
   return data
 }
 

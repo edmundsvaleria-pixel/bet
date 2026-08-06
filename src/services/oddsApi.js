@@ -2,21 +2,13 @@
 const ODDS_API_KEY = import.meta.env.VITE_ODDS_API_KEY
 const BACKUP_ODDS_API_KEY = import.meta.env.VITE_BACKUP_ODDS_API_KEY
 const BASE_URL = 'https://api.the-odds-api.com/v4'
-const PROXY_URL = '/.netlify/functions/oddsProxy?url='
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-const getCached = (key) => {
-  const cached = localStorage.getItem(`odds_${key}`)
-  if (!cached) return null
-  try {
-    const { data, timestamp } = JSON.parse(cached)
-    if (Date.now() - timestamp > CACHE_TTL) return null
-    return data
-  } catch { return null }
-}
-
-const setCache = (key, data) => {
-  localStorage.setItem(`odds_${key}`, JSON.stringify({ data, timestamp: Date.now() }))
+const getProxyUrl = (url) => {
+  if (import.meta.env.DEV) {
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+  } else {
+    return `/.netlify/functions/oddsProxy?url=${encodeURIComponent(url)}`
+  }
 }
 
 const SPORT_KEYS = {
@@ -44,29 +36,19 @@ const getSportKey = (league) => {
 
 export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
   const sportKey = getSportKey(league)
-  const cacheKey = `${sportKey}_${homeTeam}_${awayTeam}_${date}`
-
-  // Check cache first
-  const cached = getCached(cacheKey)
-  if (cached) {
-    console.log(`📦 Using cached odds for ${homeTeam} vs ${awayTeam}`)
-    return cached
-  }
-
   const sportKeysToTry = [sportKey, ...FALLBACK_SPORTS.filter(k => k !== sportKey)]
 
   for (const key of sportKeysToTry) {
     try {
       const apiKey = ODDS_API_KEY || BACKUP_ODDS_API_KEY
-      if (!apiKey) {
-        console.warn('⚠️ No Odds API key available')
-        break
-      }
+      if (!apiKey) break
 
       const url = `${BASE_URL}/sports/${key}/odds/?apiKey=${apiKey}&regions=eu&markets=h2h,overunder&date=${date || ''}`
-      const proxyUrl = `${PROXY_URL}${encodeURIComponent(url)}`
+      const proxyUrl = getProxyUrl(url)
 
+      console.log(`📡 Fetching odds via ${import.meta.env.DEV ? 'public proxy' : 'Netlify function'}: ${key}`)
       const response = await fetch(proxyUrl)
+
       if (!response.ok) {
         console.warn(`⚠️ Odds API failed for ${key} (${response.status})`)
         continue
@@ -82,7 +64,6 @@ export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
 
       if (match) {
         console.log(`✅ Found odds for ${homeTeam} vs ${awayTeam}`)
-        setCache(cacheKey, match)
         return match
       }
 
@@ -94,7 +75,6 @@ export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
 
       if (partial) {
         console.log(`✅ Found partial odds match`)
-        setCache(cacheKey, partial)
         return partial
       }
     } catch (error) {

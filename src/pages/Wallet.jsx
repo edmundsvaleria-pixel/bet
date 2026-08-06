@@ -1,32 +1,48 @@
 import { useState, useEffect } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
 import { useWallet } from '../context/WalletContext'
+import { walletService } from '../services/supabase/walletService'
 import DepositModal from '../components/wallet/DepositModal'
 import WithdrawModal from '../components/wallet/WithdrawModal'
 import TransactionItem from '../components/wallet/TransactionItem'
 import { Plus, Minus, RefreshCw } from 'lucide-react'
 
 const Wallet = () => {
-  const { user, balance, refreshBalance, loading } = useSupabase()
+  const { user, refreshBalance, loading } = useSupabase()
   const { depositCount, totalDeposited, transactions } = useWallet()
   const [showDeposit, setShowDeposit] = useState(false)
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  // ✅ Local balance state – direct fetch from Supabase
+  const [localBalance, setLocalBalance] = useState({ available: 0, withdrawable: 0 })
 
   const currency = user?.currency || 'GHS'
 
-  // Auto-refresh balance when page loads and when user changes
-  useEffect(() => {
-    if (user) {
-      refreshBalance()
+  // Fetch balance directly on mount and when user changes
+  const fetchBalance = async () => {
+    if (!user?.id) return
+    try {
+      const bal = await walletService.getBalance(user.id)
+      setLocalBalance(bal || { available: 0, withdrawable: 0 })
+      // Also update context balance so navbar stays in sync
+      await refreshBalance()
+    } catch (err) {
+      console.error('Failed to fetch balance:', err)
     }
-  }, [user])
+  }
+
+  useEffect(() => {
+    fetchBalance()
+  }, [user?.id])
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await refreshBalance()
+    await fetchBalance()
     setRefreshing(false)
   }
+
+  // Use local balance for display
+  const displayBalance = localBalance
 
   if (loading) {
     return (
@@ -54,13 +70,13 @@ const Wallet = () => {
         <div className="bg-card rounded-lg p-4 border border-primary/20">
           <div className="text-sm text-gray-400">Available Balance</div>
           <div className="text-2xl font-bold text-green-400">
-            {currency} {balance?.available?.toFixed(2) || '0.00'}
+            {currency} {displayBalance?.available?.toFixed(2) || '0.00'}
           </div>
         </div>
         <div className="bg-card rounded-lg p-4 border border-yellow-500/20">
           <div className="text-sm text-gray-400">Withdrawable</div>
           <div className="text-2xl font-bold text-yellow-400">
-            {currency} {balance?.withdrawable?.toFixed(2) || '0.00'}
+            {currency} {displayBalance?.withdrawable?.toFixed(2) || '0.00'}
           </div>
         </div>
       </div>
