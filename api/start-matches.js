@@ -11,14 +11,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Optional: Verify a secret token to prevent public access
-  // const authHeader = req.headers.authorization
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return res.status(401).json({ error: 'Unauthorized' })
-  // }
+  // ✅ AUTH CHECK – NOW ACTIVE
+  const authHeader = req.headers.authorization
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
 
   try {
-    // 1. Find all upcoming matches where start_time has passed
     const now = new Date().toISOString()
     const { data: matches, error: fetchError } = await supabase
       .from('custom_matches')
@@ -32,7 +31,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: 'No matches to start', started: 0 })
     }
 
-    // 2. Update each match to 'live'
     const started = []
     for (const match of matches) {
       const { error: updateError } = await supabase
