@@ -7,7 +7,8 @@ const getProxyUrl = (url) => {
   if (import.meta.env.DEV) {
     return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
   } else {
-    return `/.netlify/functions/oddsProxy?url=${encodeURIComponent(url)}`
+    // Vercel serverless function
+    return `/api/oddsProxy?url=${encodeURIComponent(url)}`
   }
 }
 
@@ -46,7 +47,7 @@ export const getOddsForMatch = async (homeTeam, awayTeam, date, league) => {
       const url = `${BASE_URL}/sports/${key}/odds/?apiKey=${apiKey}&regions=eu&markets=h2h,overunder&date=${date || ''}`
       const proxyUrl = getProxyUrl(url)
 
-      console.log(`📡 Fetching odds via ${import.meta.env.DEV ? 'public proxy' : 'Netlify function'}: ${key}`)
+      console.log(`📡 Fetching odds via ${import.meta.env.DEV ? 'public proxy' : 'Vercel function'}: ${key}`)
       const response = await fetch(proxyUrl)
 
       if (!response.ok) {

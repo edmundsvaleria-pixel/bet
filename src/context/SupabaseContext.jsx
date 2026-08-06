@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import supabase from '../lib/supabase'
+import supabase, { getSupabaseAdmin } from '../lib/supabase'
 import { authService } from '../services/supabase/authService'
 import { walletService } from '../services/supabase/walletService'
 
@@ -11,7 +11,6 @@ export const SupabaseProvider = ({ children }) => {
   const [session, setSession] = useState(null)
   const [balance, setBalance] = useState({ available: 0, withdrawable: 0 })
 
-  // Load user on mount
   useEffect(() => {
     const loadUserData = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -176,7 +175,7 @@ export const SupabaseProvider = ({ children }) => {
     }
   }
 
-  // ✅ Admin: Update user via Netlify Function
+  // ✅ Admin: Update user via Vercel Function
   const adminUpdateUser = async (userId, updates) => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -184,7 +183,8 @@ export const SupabaseProvider = ({ children }) => {
 
       if (!token) throw new Error('Not authenticated')
 
-      const response = await fetch('/.netlify/functions/adminActions', {
+      // ✅ Updated to Vercel API route
+      const response = await fetch('/api/adminActions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -197,11 +197,13 @@ export const SupabaseProvider = ({ children }) => {
         }),
       })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Update failed')
+      }
+
       const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Update failed')
-
       await authService.logActivity(userId, 'admin_update', `Admin updated user: ${JSON.stringify(updates)}`)
-
       return { success: true, user: result.user }
     } catch (error) {
       console.error('Update user error:', error)
@@ -209,7 +211,7 @@ export const SupabaseProvider = ({ children }) => {
     }
   }
 
-  // ✅ Admin: Delete user via Netlify Function
+  // ✅ Admin: Delete user via Vercel Function
   const adminDeleteUser = async (userId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -217,7 +219,8 @@ export const SupabaseProvider = ({ children }) => {
 
       if (!token) throw new Error('Not authenticated')
 
-      const response = await fetch('/.netlify/functions/adminActions', {
+      // ✅ Updated to Vercel API route
+      const response = await fetch('/api/adminActions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -229,11 +232,13 @@ export const SupabaseProvider = ({ children }) => {
         }),
       })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Delete failed')
+      }
+
       const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Delete failed')
-
       await authService.logActivity(userId, 'delete', 'User permanently deleted by admin')
-
       return { success: true }
     } catch (error) {
       console.error('Delete user error:', error)
