@@ -3,6 +3,36 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useMatchEngine } from '../context/MatchEngineContext'
 import { useBet } from '../context/BetContext'
 
+// ✅ Helper functions for letter logos
+const getTeamColor = (name) => {
+  const colors = [
+    'bg-blue-500', 'bg-red-500', 'bg-green-500', 'bg-yellow-500',
+    'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-orange-500',
+    'bg-teal-500', 'bg-cyan-500', 'bg-rose-500', 'bg-emerald-500',
+    'bg-violet-500', 'bg-fuchsia-500', 'bg-amber-500', 'bg-lime-500'
+  ]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash + name.charCodeAt(i)) % colors.length
+  }
+  return colors[hash]
+}
+
+const getInitials = (name) => name?.charAt(0)?.toUpperCase() || '?'
+
+const TeamLogo = ({ name, logo, className = "w-10 h-10" }) => {
+  if (logo) {
+    return <img src={logo} alt={name} className={`${className} object-contain rounded-full`} />
+  }
+  const colorClass = getTeamColor(name)
+  const initial = getInitials(name)
+  return (
+    <div className={`${className} ${colorClass} rounded-full flex items-center justify-center text-white font-bold text-lg`}>
+      {initial}
+    </div>
+  )
+}
+
 const MatchDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -144,6 +174,7 @@ const MatchDetails = () => {
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <TeamLogo name={match.teams.home.name} logo={match.teams.home.logo} className="w-12 h-12" />
             <div>
               <div className="font-bold text-lg">{match.teams.home.name}</div>
               {isLive && <div className="text-sm font-mono text-red-500">● LIVE</div>}
@@ -168,6 +199,7 @@ const MatchDetails = () => {
               {isLive && <div className="text-sm font-mono text-red-500">● LIVE</div>}
               {isHalfTime && <div className="text-sm font-mono text-yellow-400">⏱️ HT</div>}
             </div>
+            <TeamLogo name={match.teams.away.name} logo={match.teams.away.logo} className="w-12 h-12" />
           </div>
         </div>
         <div className="text-xs text-gray-500 mt-2 text-center">
