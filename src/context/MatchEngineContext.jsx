@@ -25,7 +25,6 @@ export const MatchEngineProvider = ({ children }) => {
     localStorage.setItem('betzone_match_history', JSON.stringify(matchHistory))
   }, [matchHistory])
 
-  // ✅ ADD THIS: generate random goal minutes
   const generateGoalMinutes = (count) => {
     if (count === 0) return []
     const minutes = new Set()
@@ -56,7 +55,7 @@ export const MatchEngineProvider = ({ children }) => {
       id: Date.now(),
       status: 'upcoming',
       goals: { home: 0, away: 0 },
-      elapsed: 0,
+      elapsedSeconds: 0,
       events: [],
       goalTimeline: [],
       createdAt: new Date().toISOString(),
@@ -70,19 +69,16 @@ export const MatchEngineProvider = ({ children }) => {
     return newMatch
   }
 
-  // ✅ ADD THIS: updateMatch function
   const updateMatch = (id, updates) => {
     setCustomMatches(prev =>
       prev.map(m => m.id === id ? { ...m, ...updates } : m)
     )
   }
 
-  // ✅ ADD THIS: deleteMatch function
   const deleteMatch = (id) => {
     setCustomMatches(prev => prev.filter(m => m.id !== id))
   }
 
-  // ✅ ADD THIS: archiveMatch function
   const archiveMatch = (id) => {
     const match = customMatches.find(m => m.id === id)
     if (match) {
@@ -96,7 +92,7 @@ export const MatchEngineProvider = ({ children }) => {
     }
   }
 
-  // Simulation effect
+  // Real‑time simulation – runs every second
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
 
@@ -111,43 +107,54 @@ export const MatchEngineProvider = ({ children }) => {
       let matchesToArchive = []
 
       updatedMatches = updatedMatches.map(m => {
+        // Auto‑start
         if (m.status === 'upcoming' && new Date(m.startTime) <= now) {
           changesMade = true
-          return { ...m, status: 'live', elapsed: 0 }
+          return { ...m, status: 'live', elapsedSeconds: 0 }
         }
 
         if (m.status === 'live') {
           let newGoals = { ...m.goals }
           let events = [...(m.events || [])]
           let goalTimeline = [...(m.goalTimeline || [])]
-          let newElapsed = (m.elapsed || 0) + 1
+          // ✅ Real‑time: add 1 second per tick
+          let newElapsedSeconds = (m.elapsedSeconds || 0) + 1
 
+          // Check if a goal should happen at this second
           const schedule = m.goalSchedule || { home: [], away: [] }
           const homeMinutes = schedule.home || []
           const awayMinutes = schedule.away || []
+          // Compute current minute (rounded down)
+          const currentMinute = Math.floor(newElapsedSeconds / 60)
 
-          if (homeMinutes.includes(newElapsed)) {
-            newGoals.home += 1
-            events.push({ minute: newElapsed, team: 'home', type: 'goal' })
-            goalTimeline.push({ minute: newElapsed, team: 'home', score: { ...newGoals } })
-          }
-          if (awayMinutes.includes(newElapsed)) {
-            newGoals.away += 1
-            events.push({ minute: newElapsed, team: 'away', type: 'goal' })
-            goalTimeline.push({ minute: newElapsed, team: 'away', score: { ...newGoals } })
+          // If we crossed a minute boundary, check for goals
+          const prevMinute = Math.floor((newElapsedSeconds - 1) / 60)
+          if (currentMinute !== prevMinute) {
+            if (homeMinutes.includes(currentMinute)) {
+              newGoals.home += 1
+              events.push({ minute: currentMinute, team: 'home', type: 'goal' })
+              goalTimeline.push({ minute: currentMinute, team: 'home', score: { ...newGoals } })
+            }
+            if (awayMinutes.includes(currentMinute)) {
+              newGoals.away += 1
+              events.push({ minute: currentMinute, team: 'away', type: 'goal' })
+              goalTimeline.push({ minute: currentMinute, team: 'away', score: { ...newGoals } })
+            }
           }
 
           let halftimeScore = m.halftimeScore
-          if (newElapsed === 45) {
+          // Half‑time at exactly 2700 seconds (45 minutes)
+          if (newElapsedSeconds === 2700) {
             halftimeScore = { home: newGoals.home, away: newGoals.away }
           }
 
           let status = 'LIVE'
-          if (newElapsed === 45) {
+          if (newElapsedSeconds === 2700) {
             status = 'HT'
           }
 
-          if (newElapsed >= 90) {
+          // Full‑time at 5400 seconds (90 minutes)
+          if (newElapsedSeconds >= 5400) {
             changesMade = true
             const result = {
               homeScore: newGoals.home,
@@ -161,7 +168,7 @@ export const MatchEngineProvider = ({ children }) => {
             return {
               ...m,
               goals: newGoals,
-              elapsed: 90,
+              elapsedSeconds: 5400,
               status: 'finished',
               events,
               goalTimeline,
@@ -171,14 +178,14 @@ export const MatchEngineProvider = ({ children }) => {
             }
           }
 
-          if (newGoals.home !== m.goals.home || newGoals.away !== m.goals.away || newElapsed !== m.elapsed) {
+          if (newGoals.home !== m.goals.home || newGoals.away !== m.goals.away || newElapsedSeconds !== m.elapsedSeconds) {
             changesMade = true
           }
 
           return {
             ...m,
             goals: newGoals,
-            elapsed: newElapsed,
+            elapsedSeconds: newElapsedSeconds,
             events,
             goalTimeline,
             halftimeScore,
@@ -187,6 +194,7 @@ export const MatchEngineProvider = ({ children }) => {
         return m
       })
 
+      // Archive finished matches after 10 seconds
       const nowTime = now.getTime()
       const kept = []
       const toArchive = []
@@ -223,7 +231,7 @@ export const MatchEngineProvider = ({ children }) => {
       }
 
       processingRef.current = false
-    }, 1000)
+    }, 1000) // ✅ runs every 1 second
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -236,9 +244,9 @@ export const MatchEngineProvider = ({ children }) => {
         customMatches,
         matchHistory,
         addCustomMatch,
-        updateMatch,    // ✅ NOW EXPORTED
-        deleteMatch,    // ✅ NOW EXPORTED
-        archiveMatch,   // ✅ NOW EXPORTED
+        updateMatch,
+        deleteMatch,
+        archiveMatch,
       }}
     >
       {children}
