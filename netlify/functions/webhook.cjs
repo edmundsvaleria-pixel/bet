@@ -1,3 +1,4 @@
+// netlify/functions/webhook.cjs
 const crypto = require('crypto')
 const { createClient } = require('@supabase/supabase-js')
 

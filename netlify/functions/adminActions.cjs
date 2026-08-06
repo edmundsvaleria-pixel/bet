@@ -1,8 +1,8 @@
+// netlify/functions/adminActions.cjs
 const { createClient } = require('@supabase/supabase-js')
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
@@ -12,61 +12,55 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) }
   }
 
-  try {
-    const body = JSON.parse(event.body)
-    const { action, userId, updates } = body
+  const { action, userId, updates } = JSON.parse(event.body)
 
-    const authHeader = event.headers.authorization
-    if (!authHeader) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) }
+  // Verify token and admin role
+  const authHeader = event.headers.authorization
+  if (!authHeader) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) }
+  }
+
+  const token = authHeader.split(' ')[1]
+  const regularClient = createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY)
+  const { data: { user }, error: userError } = await regularClient.auth.getUser(token)
+
+  if (userError || !user) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Invalid token' }) }
+  }
+
+  // Check admin role
+  const { data: adminCheck } = await regularClient
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (adminCheck?.role !== 'admin') {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) }
+  }
+
+  switch (action) {
+    case 'deleteUser': {
+      await supabaseAdmin.auth.admin.deleteUser(userId)
+      await regularClient.from('users').delete().eq('id', userId)
+      await regularClient.from('balances').delete().eq('user_id', userId)
+      return { statusCode: 200, body: JSON.stringify({ success: true }) }
     }
-
-    const token = authHeader.split(' ')[1]
-    const regularClient = createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY)
-    const { data: { user }, error: userError } = await regularClient.auth.getUser(token)
-
-    if (userError || !user) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Invalid token' }) }
-    }
-
-    const { data: adminCheck } = await regularClient
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (adminCheck?.role !== 'admin') {
-      return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) }
-    }
-
-    switch (action) {
-      case 'deleteUser': {
-        await supabaseAdmin.auth.admin.deleteUser(userId)
-        await regularClient.from('users').delete().eq('id', userId)
-        await regularClient.from('balances').delete().eq('user_id', userId)
-        return { statusCode: 200, body: JSON.stringify({ success: true }) }
+    case 'updateUser': {
+      if (updates.active === false) {
+        try {
+          await supabaseAdmin.auth.admin.revokeUser(userId)
+        } catch (_) {}
       }
-
-      case 'updateUser': {
-        if (updates.active === false) {
-          try {
-            await supabaseAdmin.auth.admin.revokeUser(userId)
-          } catch (e) { console.warn('Revoke warning:', e.message) }
-        }
-        const { data, error } = await regularClient
-          .from('users')
-          .update(updates)
-          .eq('id', userId)
-          .select()
-        if (error) throw error
-        return { statusCode: 200, body: JSON.stringify({ success: true, user: data?.[0] }) }
-      }
-
-      default:
-        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid action' }) }
+      const { data, error } = await regularClient
+        .from('users')
+        .update(updates)
+        .eq('id', userId)
+        .select()
+      if (error) throw error
+      return { statusCode: 200, body: JSON.stringify({ success: true, user: data?.[0] }) }
     }
-  } catch (error) {
-    console.error(error)
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) }
+    default:
+      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid action' }) }
   }
 }
