@@ -1,23 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
 import { useNotification } from '../context/NotificationContext'
-import { Copy, Share2, Users, Gift } from 'lucide-react'
+import { Copy, Share2, Users, Gift, RefreshCw } from 'lucide-react'
 import supabase from '../lib/supabase'
 
 const Referral = () => {
-  const { user } = useSupabase()
+  const { user, refreshBalance } = useSupabase()
   const { showNotification } = useNotification()
   const [referralCode, setReferralCode] = useState('')
   const [referrals, setReferrals] = useState([])
   const [totalEarned, setTotalEarned] = useState(0)
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!user) return
-    fetchReferralData()
-  }, [user])
+  const [refreshing, setRefreshing] = useState(false)
 
   const fetchReferralData = async () => {
+    if (!user) return
     try {
       // Get user's referral code
       const { data: userData, error: userError } = await supabase
@@ -51,6 +48,19 @@ const Referral = () => {
       setLoading(false)
     }
   }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await refreshBalance()      // ✅ Update navbar/wallet balance
+    await fetchReferralData()   // ✅ Refresh referral data
+    setRefreshing(false)
+    showNotification('Referral data refreshed', 'success')
+  }
+
+  useEffect(() => {
+    fetchReferralData()
+    refreshBalance() // Ensure balance is up‑to‑date on page load
+  }, [user])
 
   const handleCopy = () => {
     const link = `${window.location.origin}/register?ref=${referralCode}`
@@ -95,7 +105,16 @@ const Referral = () => {
 
   return (
     <div className="py-4 space-y-6">
-      <h1 className="text-2xl font-bold text-white">Refer & Earn</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">Refer & Earn</h1>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="text-gray-400 hover:text-white transition"
+        >
+          <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
+        </button>
+      </div>
 
       {/* Referral Link Card */}
       <div className="bg-card rounded-2xl p-6 border border-white/5">
@@ -138,7 +157,9 @@ const Referral = () => {
         </div>
         <div className="bg-card rounded-lg p-4 border border-yellow-500/20">
           <div className="text-sm text-gray-400">Total Earned</div>
-          <div className="text-2xl font-bold text-yellow-400">GHS {totalEarned.toFixed(2)}</div>
+          <div className="text-2xl font-bold text-yellow-400">
+            {user?.currency || 'GHS'} {totalEarned.toFixed(2)}
+          </div>
         </div>
       </div>
 
@@ -164,7 +185,7 @@ const Referral = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-bold text-green-400">
-                    +GHS {ref.bonus_amount.toFixed(2)}
+                    +{user?.currency || 'GHS'} {ref.bonus_amount.toFixed(2)}
                   </div>
                   <div className="text-xs text-gray-400 capitalize">{ref.status}</div>
                 </div>
