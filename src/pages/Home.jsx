@@ -5,19 +5,17 @@ import MatchCard from '../components/common/MatchCard'
 import Hero from '../components/home/Hero'
 import HeroCarousel from '../components/home/HeroCarousel'
 import LoadingSkeleton from '../components/common/LoadingSkeleton'
-import EmptyState from '../components/common/EmptyState'
-import { Search, X } from 'lucide-react'
+import { Search, X, CalendarDays } from 'lucide-react'
 
 const Home = () => {
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const { customMatches } = useMatchEngine()
   const { user } = useSupabase()
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
-    // Just simulate loading – custom matches are already available from context
+    // Simulate loading (custom matches are already in context)
     setLoading(false)
   }, [])
 
@@ -71,7 +69,7 @@ const Home = () => {
   const allLive = customLive
   const allUpcoming = customUpcoming
 
-  // Search logic – filter custom matches
+  // Search logic
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value)
   }
@@ -103,17 +101,7 @@ const Home = () => {
     )
   }
 
-  if (error) {
-    return (
-      <div className="py-4">
-        <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 text-red-300">
-          {error}
-        </div>
-      </div>
-    )
-  }
-
-  // Show search results if searching
+  // Search results (always show if searching)
   if (isSearching) {
     return (
       <div className="space-y-4 pb-4">
@@ -136,11 +124,11 @@ const Home = () => {
 
         <h2 className="text-xl font-bold text-white">Search Results</h2>
         {filteredMatches.length === 0 ? (
-          <EmptyState
-            icon="🔍"
-            title="No custom matches found"
-            message="Try a different search term."
-          />
+          <div className="bg-card rounded-lg p-8 text-center border border-white/5">
+            <div className="text-5xl mb-4">🔍</div>
+            <p className="text-gray-400">No custom matches found for "{searchQuery}"</p>
+            <p className="text-xs text-gray-500 mt-1">Try a different team or league</p>
+          </div>
         ) : (
           <div className="space-y-3">
             {filteredMatches.map((match) => (
@@ -157,8 +145,13 @@ const Home = () => {
     )
   }
 
-  // Normal view
+  // ✅ Normal view – check if user is logged in and there are matches
   const showCarousel = user && allUpcoming.length > 0
+  const showLive = allLive.length > 0
+  const showMatches = showCarousel || showLive
+
+  // ✅ For logged-in users with no matches, show custom message
+  const noMatchesMessage = user && !showMatches
 
   return (
     <div className="space-y-6 pb-4">
@@ -179,55 +172,64 @@ const Home = () => {
         )}
       </div>
 
-      {showCarousel ? (
-        <HeroCarousel matches={allUpcoming} />
+      {/* ✅ If no matches and logged in, show custom message */}
+      {noMatchesMessage ? (
+        <div className="bg-card rounded-2xl p-12 text-center border border-white/5">
+          <div className="text-6xl mb-4">📅</div>
+          <h2 className="text-2xl font-bold text-white mb-2">No fixed games today</h2>
+          <p className="text-gray-400 text-lg">Come back later for new matches</p>
+          {isAdmin && (
+            <p className="text-xs text-gray-500 mt-4">
+              ⚡ Admin: Create a custom match to get started
+            </p>
+          )}
+        </div>
       ) : (
-        <Hero />
-      )}
+        <>
+          {/* Carousel or Hero */}
+          {showCarousel ? (
+            <HeroCarousel matches={allUpcoming} />
+          ) : (
+            <Hero />
+          )}
 
-      {allLive.length > 0 && (
-        <section>
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xl font-bold text-white">🔥 Live Now</h2>
-            <a href="/live" className="text-primary text-sm font-medium">View All</a>
-          </div>
-          <div className="space-y-3">
-            {allLive.map((match) => (
-              <MatchCard
-                key={match.fixture.id}
-                match={match}
-                isLive={true}
-                showOdds={true}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+          {/* Live Now section */}
+          {showLive && (
+            <section>
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-xl font-bold text-white">🔥 Live Now</h2>
+                <a href="/live" className="text-primary text-sm font-medium">View All</a>
+              </div>
+              <div className="space-y-3">
+                {allLive.map((match) => (
+                  <MatchCard
+                    key={match.fixture.id}
+                    match={match}
+                    isLive={true}
+                    showOdds={true}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
-      {!showCarousel && allUpcoming.length > 0 && (
-        <section>
-          <h2 className="text-xl font-bold text-white mb-3">📅 Upcoming Matches</h2>
-          <div className="space-y-3">
-            {allUpcoming.map((match) => (
-              <MatchCard
-                key={match.fixture.id}
-                match={match}
-                isLive={false}
-                showOdds={true}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {allLive.length === 0 && allUpcoming.length === 0 && (
-        <EmptyState
-          icon="⚽"
-          title="No matches available"
-          message="No custom matches yet. An admin will create one soon."
-          actionText={isAdmin ? "Go to Admin" : undefined}
-          actionLink={isAdmin ? "/admin" : undefined}
-        />
+          {/* Upcoming section (only if carousel not shown) */}
+          {!showCarousel && allUpcoming.length > 0 && (
+            <section>
+              <h2 className="text-xl font-bold text-white mb-3">📅 Upcoming Matches</h2>
+              <div className="space-y-3">
+                {allUpcoming.map((match) => (
+                  <MatchCard
+                    key={match.fixture.id}
+                    match={match}
+                    isLive={false}
+                    showOdds={true}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   )
