@@ -5,6 +5,7 @@ import { useMatchEngine } from '../context/MatchEngineContext'
 import { useSupabase } from '../context/SupabaseContext'
 import MatchCard from '../components/common/MatchCard'
 import Hero from '../components/home/Hero'
+import HeroCarousel from '../components/home/HeroCarousel'
 import LoadingSkeleton from '../components/common/LoadingSkeleton'
 import EmptyState from '../components/common/EmptyState'
 
@@ -52,7 +53,6 @@ const Home = () => {
           return results.map((res, idx) => res.value || matches[idx])
         }
 
-        // ⚡ Only fetch odds for first 5 live matches to improve speed
         const liveWithOdds = await fetchOddsForMatches(limitedLive.slice(0, 5))
         const upcomingWithOdds = await fetchOddsForMatches(limitedUpcoming)
 
@@ -138,9 +138,16 @@ const Home = () => {
     )
   }
 
+  // ✅ If user is logged in, show carousel of upcoming matches instead of hero
+  const showCarousel = user && allUpcoming.length > 0
+
   return (
     <div className="space-y-6 pb-4">
-      <Hero />
+      {showCarousel ? (
+        <HeroCarousel matches={allUpcoming} />
+      ) : (
+        <Hero />
+      )}
 
       {allLive.length > 0 && (
         <section>
@@ -161,7 +168,7 @@ const Home = () => {
         </section>
       )}
 
-      {allUpcoming.length > 0 && (
+      {!showCarousel && allUpcoming.length > 0 && (
         <section>
           <h2 className="text-xl font-bold text-white mb-3">📅 Upcoming Matches</h2>
           <div className="space-y-3">
