@@ -19,7 +19,6 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
   const matchTime = match.fixture?.date ? new Date(match.fixture.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''
 
   const isLiveMatch = isLive || ['LIVE', '1H', '2H', 'HT'].includes(status)
-  // ✅ Check if it's half-time (elapsed === 45 or status is HT)
   const isHalfTime = status === 'HT' || (isLiveMatch && elapsed >= 45 && elapsed < 46)
 
   const oddsData = match.odds || null
@@ -36,9 +35,10 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
     return (
       <button
         onClick={(e) => handleAddBet(market, oddsValue, label, e)}
-        className="bg-primary/20 hover:bg-primary text-white px-2 py-0.5 rounded text-xs font-bold transition"
+        className="bg-primary/20 hover:bg-primary text-white px-2 py-1 rounded text-xs font-bold transition flex items-center gap-1"
       >
-        {label} <span className="ml-0.5">{oddsValue.toFixed(2)}</span>
+        <span className="text-white/70">{label}</span>
+        <span className="text-yellow-300">{oddsValue.toFixed(2)}</span>
       </button>
     )
   }
