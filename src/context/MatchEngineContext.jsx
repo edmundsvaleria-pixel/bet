@@ -17,7 +17,6 @@ export const MatchEngineProvider = ({ children }) => {
   const intervalRef = useRef(null)
   const processingRef = useRef(false)
 
-  // Persist to localStorage
   useEffect(() => {
     localStorage.setItem('betzone_custom_matches', JSON.stringify(customMatches))
   }, [customMatches])
@@ -26,22 +25,18 @@ export const MatchEngineProvider = ({ children }) => {
     localStorage.setItem('betzone_match_history', JSON.stringify(matchHistory))
   }, [matchHistory])
 
-  // Add a custom match with final score and goal schedule
   const addCustomMatch = (match) => {
-    // Determine final scores
     const finalHome = match.finalHomeScore || 0
     const finalAway = match.finalAwayScore || 0
 
-    // If no final scores set, generate random ones (0-5 each)
     const homeGoals = finalHome > 0 ? finalHome : Math.floor(Math.random() * 6)
     const awayGoals = finalAway > 0 ? finalAway : Math.floor(Math.random() * 6)
 
-    // Generate random goal minutes (unique, 1-89)
     const generateGoalMinutes = (count) => {
       if (count === 0) return []
       const minutes = new Set()
       while (minutes.size < count) {
-        const minute = Math.floor(Math.random() * 89) + 1 // 1-89
+        const minute = Math.floor(Math.random() * 89) + 1
         minutes.add(minute)
       }
       return Array.from(minutes).sort((a, b) => a - b)
@@ -60,12 +55,10 @@ export const MatchEngineProvider = ({ children }) => {
       goalTimeline: [],
       createdAt: new Date().toISOString(),
       markets: match.markets || {},
-      goalSchedule: {
-        home: homeMinutes,
-        away: awayMinutes,
-      },
+      goalSchedule: { home: homeMinutes, away: awayMinutes },
       finalHomeScore: homeGoals,
       finalAwayScore: awayGoals,
+      halftimeScore: null,
     }
     setCustomMatches(prev => [...prev, newMatch])
     return newMatch
@@ -84,17 +77,12 @@ export const MatchEngineProvider = ({ children }) => {
   const archiveMatch = (id) => {
     const match = customMatches.find(m => m.id === id)
     if (match) {
-      const archived = {
-        ...match,
-        archivedAt: new Date().toISOString(),
-        status: 'archived',
-      }
+      const archived = { ...match, archivedAt: new Date().toISOString(), status: 'archived' }
       setMatchHistory(prev => [...prev, archived])
       deleteMatch(id)
     }
   }
 
-  // Main simulation effect – runs every second
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
 
@@ -109,25 +97,21 @@ export const MatchEngineProvider = ({ children }) => {
       let matchesToArchive = []
 
       updatedMatches = updatedMatches.map(m => {
-        // Auto-start when time arrives
         if (m.status === 'upcoming' && new Date(m.startTime) <= now) {
           changesMade = true
           return { ...m, status: 'live', elapsed: 0 }
         }
 
-        // Live simulation
         if (m.status === 'live') {
           let newGoals = { ...m.goals }
           let events = [...(m.events || [])]
           let goalTimeline = [...(m.goalTimeline || [])]
           let newElapsed = (m.elapsed || 0) + 1
 
-          // Use the goal schedule
           const schedule = m.goalSchedule || { home: [], away: [] }
           const homeMinutes = schedule.home || []
           const awayMinutes = schedule.away || []
 
-          // Check if current minute is in the schedule
           if (homeMinutes.includes(newElapsed)) {
             newGoals.home += 1
             events.push({ minute: newElapsed, team: 'home', type: 'goal' })
@@ -139,7 +123,17 @@ export const MatchEngineProvider = ({ children }) => {
             goalTimeline.push({ minute: newElapsed, team: 'away', score: { ...newGoals } })
           }
 
-          // Check if match finished (90 mins)
+          let halftimeScore = m.halftimeScore
+          if (newElapsed === 45) {
+            halftimeScore = { home: newGoals.home, away: newGoals.away }
+          }
+
+          // Set status to 'HT' exactly at 45
+          let status = 'LIVE'
+          if (newElapsed === 45) {
+            status = 'HT'
+          }
+
           if (newElapsed >= 90) {
             changesMade = true
             const result = {
@@ -147,6 +141,8 @@ export const MatchEngineProvider = ({ children }) => {
               awayScore: newGoals.away,
               homeName: m.homeTeam,
               awayName: m.awayTeam,
+              halftimeHome: halftimeScore?.home ?? 0,
+              halftimeAway: halftimeScore?.away ?? 0,
             }
             matchesToSettle.push({ matchId: m.id, result })
             return {
@@ -158,23 +154,43 @@ export const MatchEngineProvider = ({ children }) => {
               goalTimeline,
               finishedAt: new Date().toISOString(),
               result,
+              halftimeScore,
             }
           }
 
           if (newGoals.home !== m.goals.home || newGoals.away !== m.goals.away || newElapsed !== m.elapsed) {
             changesMade = true
           }
-          return { ...m, goals: newGoals, elapsed: newElapsed, events, goalTimeline }
-        }
 
+          // Update fixture status for display
+          const fixtureStatus = {
+            short: status === 'HT' ? 'HT' : 'LIVE',
+            elapsed: newElapsed,
+            long: status === 'HT' ? 'Half-time' : 'Live',
+          }
+
+          // For match card display, we need to update the fixture.status
+          // But we can't modify the fixture directly, so we'll add a custom field
+          const updatedMatch = {
+            ...m,
+            goals: newGoals,
+            elapsed: newElapsed,
+            events,
+            goalTimeline,
+            halftimeScore,
+          }
+
+          // Add fixture status for display
+          updatedMatch.fixtureStatus = fixtureStatus
+
+          return updatedMatch
+        }
         return m
       })
 
-      // Handle finished matches – archive after 10 seconds
       const nowTime = now.getTime()
       const kept = []
       const toArchive = []
-
       updatedMatches.forEach(m => {
         if (m.status === 'finished' && m.finishedAt) {
           const finishedTime = new Date(m.finishedAt).getTime()
@@ -190,18 +206,13 @@ export const MatchEngineProvider = ({ children }) => {
 
       if (toArchive.length > 0) {
         changesMade = true
-        setMatchHistory(prev => [
-          ...prev,
-          ...toArchive.map(m => ({ ...m, archivedAt: new Date().toISOString() }))
-        ])
+        setMatchHistory(prev => [...prev, ...toArchive.map(m => ({ ...m, archivedAt: new Date().toISOString() }))])
       }
 
-      // Settle bets for finished matches
       if (matchesToSettle.length > 0) {
         setTimeout(() => {
           matchesToSettle.forEach(({ matchId, result }) => {
-            const matchIdStr = `custom_${matchId}`
-            settleBetsForMatch(matchIdStr, result)
+            settleBetsForMatch(`custom_${matchId}`, result)
           })
         }, 100)
       }
@@ -222,14 +233,7 @@ export const MatchEngineProvider = ({ children }) => {
 
   return (
     <MatchEngineContext.Provider
-      value={{
-        customMatches,
-        matchHistory,
-        addCustomMatch,
-        updateMatch,
-        deleteMatch,
-        archiveMatch,
-      }}
+      value={{ customMatches, matchHistory, addCustomMatch, updateMatch, deleteMatch, archiveMatch }}
     >
       {children}
     </MatchEngineContext.Provider>

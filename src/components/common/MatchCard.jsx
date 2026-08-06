@@ -19,6 +19,9 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
   const matchTime = match.fixture?.date ? new Date(match.fixture.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''
 
   const isLiveMatch = isLive || ['LIVE', '1H', '2H', 'HT'].includes(status)
+  // ✅ Check if it's half-time (elapsed === 45 or status is HT)
+  const isHalfTime = status === 'HT' || (isLiveMatch && elapsed >= 45 && elapsed < 46)
+
   const oddsData = match.odds || null
 
   const handleAddBet = (market, oddsValue, label, e) => {
@@ -57,11 +60,15 @@ const MatchCard = ({ match, isLive = false, showOdds = true }) => {
           </div>
           <div className="text-center">
             {isLiveMatch ? (
-              <>
-                <span className="text-red-500 text-sm font-bold animate-pulse">●</span>
-                <span className="text-xs text-gray-400 ml-1">{elapsed}'</span>
-                <div className="text-lg font-bold">{homeScore} : {awayScore}</div>
-              </>
+              isHalfTime ? (
+                <div className="text-sm font-bold text-yellow-400">HT</div>
+              ) : (
+                <>
+                  <span className="text-red-500 text-sm font-bold animate-pulse">●</span>
+                  <span className="text-xs text-gray-400 ml-1">{elapsed}'</span>
+                  <div className="text-lg font-bold">{homeScore} : {awayScore}</div>
+                </>
+              )
             ) : (
               <span className="text-sm text-gray-400">{matchTime}</span>
             )}

@@ -18,24 +18,29 @@ const MatchDetails = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        
+
         const isCustom = id.toString().startsWith('custom_')
         const customId = isCustom ? parseInt(id.toString().replace('custom_', '')) : null
-        
+
         if (isCustom && customId) {
           const customMatch = customMatches.find(m => m.id === customId)
           if (!customMatch) {
             setError('Match not found')
             return
           }
-          
+
+          const isLive = customMatch.status === 'live'
+          const isFinished = customMatch.status === 'finished'
+          const elapsed = customMatch.elapsed || 0
+          const isHalfTime = elapsed === 45
+
           const matchData = {
             fixture: {
               id: `custom_${customMatch.id}`,
               status: {
-                short: customMatch.status === 'live' ? 'LIVE' : customMatch.status === 'upcoming' ? 'NS' : 'FT',
-                elapsed: customMatch.elapsed || 0,
-                long: customMatch.status === 'live' ? 'Live' : customMatch.status === 'upcoming' ? 'Not Started' : 'Finished',
+                short: isFinished ? 'FT' : isHalfTime ? 'HT' : isLive ? 'LIVE' : 'NS',
+                elapsed: elapsed,
+                long: isFinished ? 'Finished' : isHalfTime ? 'Half-time' : isLive ? 'Live' : 'Not Started',
               },
               date: customMatch.startTime,
               venue: {
@@ -64,7 +69,7 @@ const MatchDetails = () => {
             isCustom: true,
             customMatch: customMatch,
           }
-          
+
           setMatch(matchData)
           if (customMatch.markets) {
             setOdds(customMatch.markets)
@@ -135,6 +140,8 @@ const MatchDetails = () => {
   if (!match) return null
 
   const isLive = match.fixture.status.short === 'LIVE' || match.fixture.status.short === '1H' || match.fixture.status.short === '2H'
+  const isHalfTime = match.fixture.status.short === 'HT'
+  const isFinished = match.fixture.status.short === 'FT'
   const elapsed = match.fixture.status.elapsed || 0
   const homeScore = match.goals.home ?? '-'
   const awayScore = match.goals.away ?? '-'
@@ -165,27 +172,43 @@ const MatchDetails = () => {
             <div>
               <div className="font-bold text-lg">{match.teams.home.name}</div>
               {isLive && <div className="text-sm font-mono text-red-500">● LIVE</div>}
+              {isHalfTime && <div className="text-sm font-mono text-yellow-400">⏱️ HT</div>}
             </div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold">{homeScore} : {awayScore}</div>
-            {isLive ? (
-              <div className="text-xs text-gray-400">{elapsed}'</div>
+            {isHalfTime ? (
+              <div className="text-2xl font-bold text-yellow-400">HT</div>
             ) : (
+              <div className="text-2xl font-bold">{homeScore} : {awayScore}</div>
+            )}
+            {isLive && !isHalfTime && <div className="text-xs text-gray-400">{elapsed}'</div>}
+            {!isLive && !isFinished && !isHalfTime && (
               <div className="text-xs text-gray-400">{match.fixture.date?.split('T')[1]?.slice(0,5) || 'Scheduled'}</div>
             )}
+            {isFinished && <div className="text-xs text-gray-400">Full Time</div>}
           </div>
           <div className="flex items-center gap-3">
             <div>
               <div className="font-bold text-lg text-right">{match.teams.away.name}</div>
               {isLive && <div className="text-sm font-mono text-red-500">● LIVE</div>}
+              {isHalfTime && <div className="text-sm font-mono text-yellow-400">⏱️ HT</div>}
             </div>
           </div>
         </div>
         <div className="text-xs text-gray-500 mt-2 text-center">
           {match.fixture.status.long} • {match.fixture.venue.city}
         </div>
-        
+
+        {/* Half-time score display */}
+        {match.isCustom && match.customMatch?.halftimeScore && (
+          <div className="mt-2 p-2 bg-dark/50 rounded-lg text-center">
+            <div className="text-xs text-gray-400">Half-time Score</div>
+            <div className="text-sm font-bold text-yellow-400">
+              {match.customMatch.halftimeScore.home} : {match.customMatch.halftimeScore.away}
+            </div>
+          </div>
+        )}
+
         {match.isCustom && match.customMatch?.goalTimeline && match.customMatch.goalTimeline.length > 0 && (
           <div className="mt-2 p-2 bg-dark/50 rounded-lg">
             <div className="text-xs text-gray-400 mb-1">⚽ Goal Timeline</div>
@@ -203,17 +226,14 @@ const MatchDetails = () => {
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-white">Markets</h3>
 
-        {/* ✅ Updated message – no "free tier limitation" text */}
         {!odds && !match.isCustom ? (
           <div className="bg-card rounded-lg p-4 text-center text-gray-400 border border-white/5">
             Odds are currently unavailable for this match.
           </div>
         ) : null}
 
-        {/* Odds display for non-custom matches */}
         {odds && !match.isCustom && (
           <>
-            {/* 1X2 */}
             {odds.h2h && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Match Winner (1X2)</div>
@@ -224,8 +244,6 @@ const MatchDetails = () => {
                 </div>
               </div>
             )}
-
-            {/* Over/Under */}
             {odds.overUnder && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Over / Under</div>
@@ -235,8 +253,6 @@ const MatchDetails = () => {
                 </div>
               </div>
             )}
-
-            {/* Double Chance */}
             {odds.doubleChance && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Double Chance</div>
@@ -247,8 +263,6 @@ const MatchDetails = () => {
                 </div>
               </div>
             )}
-
-            {/* Draw No Bet */}
             {odds.drawNoBet && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Draw No Bet</div>
@@ -258,8 +272,6 @@ const MatchDetails = () => {
                 </div>
               </div>
             )}
-
-            {/* Both Teams To Score */}
             {odds.btts && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Both Teams To Score</div>
@@ -269,8 +281,6 @@ const MatchDetails = () => {
                 </div>
               </div>
             )}
-
-            {/* First Half Winner */}
             {odds.firstHalfWinner && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">First Half Winner</div>
@@ -281,8 +291,6 @@ const MatchDetails = () => {
                 </div>
               </div>
             )}
-
-            {/* Second Half Winner */}
             {odds.secondHalfWinner && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Second Half Winner</div>
@@ -296,12 +304,10 @@ const MatchDetails = () => {
           </>
         )}
 
-        {/* ✅ Custom Markets for Custom Matches (always show if markets exist) */}
         {match.isCustom && match.customMatch?.markets && (
           <div className="space-y-4 mt-4">
             <h3 className="text-lg font-bold text-white border-t border-white/10 pt-4">Custom Markets</h3>
-            
-            {/* Over/Under */}
+
             {Object.keys(match.customMatch.markets.overUnder || {}).length > 0 && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Over / Under (Custom)</div>
@@ -317,7 +323,6 @@ const MatchDetails = () => {
               </div>
             )}
 
-            {/* Correct Score */}
             {Object.keys(match.customMatch.markets.correctScore || {}).length > 0 && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Correct Score</div>
@@ -329,7 +334,6 @@ const MatchDetails = () => {
               </div>
             )}
 
-            {/* HT/FT */}
             {Object.keys(match.customMatch.markets.htft || {}).length > 0 && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Half Time / Full Time</div>
