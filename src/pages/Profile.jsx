@@ -1,7 +1,17 @@
+import { useState } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
+import { useNotification } from '../context/NotificationContext'
 
 const Profile = () => {
-  const { user, balance } = useSupabase()
+  const { user, balance, signOut } = useSupabase()
+  const { showNotification } = useNotification()
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showOld, setShowOld] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   if (!user) {
     return (
@@ -10,6 +20,31 @@ const Profile = () => {
         <a href="/login" className="text-primary hover:underline">Login</a>
       </div>
     )
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    if (newPassword !== confirmPassword) {
+      showNotification('Passwords do not match', 'error')
+      return
+    }
+    if (newPassword.length < 6) {
+      showNotification('Password must be at least 6 characters', 'error')
+      return
+    }
+    setLoading(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) throw error
+      showNotification('Password updated successfully!', 'success')
+      setOldPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      showNotification(err.message || 'Failed to update password', 'error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -44,9 +79,86 @@ const Profile = () => {
           <div className="text-sm text-gray-400">Country</div>
           <div className="text-white font-medium">{user.country || 'N/A'}</div>
         </div>
+
+        {/* Change Password Section */}
+        <div className="border-t border-white/10 pt-4 mt-4">
+          <h3 className="text-lg font-bold text-white mb-3">Change Password</h3>
+          <form onSubmit={handleChangePassword} className="space-y-3">
+            <div>
+              <label className="text-sm text-gray-400 block mb-1">Current Password</label>
+              <div className="relative">
+                <input
+                  type={showOld ? 'text' : 'password'}
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className="w-full bg-dark border border-white/10 rounded-lg px-4 py-2 pr-10 text-white focus:border-primary outline-none transition"
+                  placeholder="Enter current password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOld(!showOld)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  {showOld ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm text-gray-400 block mb-1">New Password</label>
+              <div className="relative">
+                <input
+                  type={showNew ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-dark border border-white/10 rounded-lg px-4 py-2 pr-10 text-white focus:border-primary outline-none transition"
+                  placeholder="Enter new password (min 6 chars)"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew(!showNew)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm text-gray-400 block mb-1">Confirm New Password</label>
+              <div className="relative">
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-dark border border-white/10 rounded-lg px-4 py-2 pr-10 text-white focus:border-primary outline-none transition"
+                  placeholder="Confirm new password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/80 text-white font-bold py-2 rounded-lg transition disabled:opacity-50"
+            >
+              {loading ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   )
 }
+
+// Add Eye/EyeOff imports
+import { Eye, EyeOff } from 'lucide-react'
 
 export default Profile

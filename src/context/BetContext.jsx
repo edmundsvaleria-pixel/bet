@@ -17,7 +17,6 @@ export const BetProvider = ({ children }) => {
 
   const { balance, updateBalance, addTransaction } = useWallet()
 
-  // Persist selections and bets to localStorage
   useEffect(() => {
     localStorage.setItem('betzone_selections', JSON.stringify(selections))
   }, [selections])
@@ -26,7 +25,6 @@ export const BetProvider = ({ children }) => {
     localStorage.setItem('betzone_bets', JSON.stringify(bets))
   }, [bets])
 
-  // ✅ ADD SELECTION - THIS WAS MISSING!
   const addSelection = (matchId, market, odds, label) => {
     const exists = selections.find(s => s.matchId === matchId && s.market === market)
     if (exists) {
@@ -47,7 +45,13 @@ export const BetProvider = ({ children }) => {
 
   const getTotalOdds = () => {
     if (selections.length === 0) return 0
-    return selections.reduce((acc, s) => acc * s.odds, 1)
+    const rawOdds = selections.reduce((acc, s) => acc * s.odds, 1)
+    // ✅ Parlay boost: if 3+ selections, add 5% boost
+    if (selections.length >= 3) {
+      const boosted = rawOdds * 1.05
+      return Math.round(boosted * 100) / 100
+    }
+    return Math.round(rawOdds * 100) / 100
   }
 
   const getPotentialWinnings = () => {
@@ -67,7 +71,6 @@ export const BetProvider = ({ children }) => {
     const newAvailable = balance.available - stake
     updateBalance({ ...balance, available: newAvailable })
 
-    // Create bet record
     const bet = {
       id: Date.now(),
       selections: selections.map(s => ({ ...s })),
@@ -77,10 +80,10 @@ export const BetProvider = ({ children }) => {
       status: 'open',
       date: new Date().toISOString(),
       settled: false,
+      boosted: selections.length >= 3, // flag for display
     }
     setBets(prev => [bet, ...prev])
 
-    // Add transaction
     addTransaction({
       type: 'bet',
       amount: -stake,
@@ -88,7 +91,6 @@ export const BetProvider = ({ children }) => {
       date: new Date().toISOString(),
     })
 
-    // Clear selections and reset stake
     clearSelections()
     setStake(0)
     setIsOpen(false)
@@ -96,7 +98,6 @@ export const BetProvider = ({ children }) => {
     return bet
   }
 
-  // Admin functions
   const getOpenBets = () => {
     return bets.filter(b => b.status === 'open' && !b.settled)
   }
@@ -157,7 +158,7 @@ export const BetProvider = ({ children }) => {
         setStake,
         isOpen,
         bets,
-        addSelection,        // ✅ EXPORTED
+        addSelection,
         removeSelection,
         clearSelections,
         getTotalOdds,

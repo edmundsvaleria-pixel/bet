@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
 import { Link, useNavigate } from 'react-router-dom'
 import { countries, defaultCountry } from '../data/countries'
+import { convertFromGHS } from '../utils/currency'
+import supabase from '../lib/supabase'
 
 const Register = () => {
   const [name, setName] = useState('')
@@ -9,7 +11,9 @@ const Register = () => {
   const [phone, setPhone] = useState('')
   const [selectedCountry, setSelectedCountry] = useState(defaultCountry)
   const [password, setPassword] = useState('')
+  const [promoCode, setPromoCode] = useState('')
   const [error, setError] = useState('')
+  const [promoMessage, setPromoMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const { signUp, user } = useSupabase()
   const navigate = useNavigate()
@@ -21,19 +25,126 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setPromoMessage('')
     setLoading(true)
+
     try {
+      // 1. Register user
       const fullPhone = `${selectedCountry.code}${phone}`
       const result = await signUp(name, email, fullPhone, password, selectedCountry.name, selectedCountry.code, selectedCountry.currency)
-      if (result.success) {
-        navigate('/login', { state: { message: 'Registration successful! Please login.' } })
-      } else {
+      if (!result.success) {
         setError(result.error || 'Registration failed')
+        setLoading(false)
+        return
       }
+
+      // 2. If promo code provided, redeem it
+      if (promoCode.trim()) {
+        const userId = result.user?.id
+        if (userId) {
+          await redeemPromoCode(userId, promoCode.trim().toUpperCase(), selectedCountry.currency)
+        }
+      }
+
+      // 3. Redirect to login with success message
+      navigate('/login', { state: { message: 'Registration successful! Please login.' } })
     } catch (err) {
-      setError('Registration failed. Please try again.')
+      setError(err.message || 'Registration failed')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Helper to redeem promo code after registration
+  const redeemPromoCode = async (userId, code, userCurrency) => {
+    try {
+      // 1. Look up promo code
+      const { data: promo, error: promoError } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('code', code)
+        .eq('active', true)
+        .single()
+
+      if (promoError || !promo) {
+        setPromoMessage('Invalid or expired promo code')
+        return
+      }
+
+      // 2. Check if already redeemed by this user
+      const { data: redeemed, error: redeemCheck } = await supabase
+        .from('user_promo_redemptions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('promo_code_id', promo.id)
+        .maybeSingle()
+
+      if (redeemed) {
+        setPromoMessage('You have already redeemed this code')
+        return
+      }
+
+      // 3. Check max uses
+      if (promo.max_uses && promo.used_count >= promo.max_uses) {
+        setPromoMessage('This promo code has reached its limit')
+        return
+      }
+
+      // 4. Check expiry
+      if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
+        setPromoMessage('This promo code has expired')
+        return
+      }
+
+      // 5. Convert bonus amount to user's currency
+      const bonusInGHS = promo.bonus_amount
+      const convertedBonus = await convertFromGHS(bonusInGHS, userCurrency)
+
+      // 6. Credit user's available balance
+      const { data: currentBalance, error: fetchError } = await supabase
+        .from('balances')
+        .select('available')
+        .eq('user_id', userId)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      const newAvailable = (currentBalance?.available || 0) + convertedBonus
+      await supabase
+        .from('balances')
+        .update({ available: newAvailable })
+        .eq('user_id', userId)
+
+      // 7. Log redemption
+      await supabase
+        .from('user_promo_redemptions')
+        .insert({
+          user_id: userId,
+          promo_code_id: promo.id,
+          bonus_amount: convertedBonus,
+        })
+
+      // 8. Increment used count
+      await supabase
+        .from('promo_codes')
+        .update({ used_count: promo.used_count + 1 })
+        .eq('id', promo.id)
+
+      // 9. Log transaction
+      await supabase
+        .from('transactions')
+        .insert({
+          user_id: userId,
+          type: 'bonus',
+          amount: convertedBonus,
+          description: `Promo code: ${promo.code} (converted from ${bonusInGHS} GHS)`,
+          status: 'completed',
+        })
+
+      setPromoMessage(`🎉 Promo code redeemed! +${userCurrency} ${convertedBonus.toFixed(2)}`)
+    } catch (err) {
+      console.error('Promo redemption error:', err)
+      setPromoMessage('Failed to redeem promo code')
     }
   }
 
@@ -108,6 +219,24 @@ const Register = () => {
               minLength={6}
             />
           </div>
+
+          {/* Promo Code Input */}
+          <div>
+            <label className="text-sm text-gray-400 block mb-1">Promo Code (optional)</label>
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              className="w-full bg-dark border border-white/10 rounded-lg px-4 py-2 text-white focus:border-primary outline-none transition"
+              placeholder="Enter promo code if you have one"
+            />
+            {promoMessage && (
+              <div className={`text-sm mt-1 ${promoMessage.includes('🎉') ? 'text-green-400' : 'text-red-400'}`}>
+                {promoMessage}
+              </div>
+            )}
+          </div>
+
           {error && <div className="text-red-400 text-sm">{error}</div>}
           <button
             type="submit"

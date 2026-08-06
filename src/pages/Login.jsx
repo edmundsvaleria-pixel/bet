@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 
 const Login = () => {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const [loading, setLoading] = useState(false)
@@ -68,14 +70,23 @@ const Login = () => {
           </div>
           <div>
             <label className="text-sm text-gray-400 block mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-dark border border-white/10 rounded-lg px-4 py-2 text-white focus:border-primary outline-none transition"
-              placeholder="Enter your password"
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-dark border border-white/10 rounded-lg px-4 py-2 pr-10 text-white focus:border-primary outline-none transition"
+                placeholder="Enter your password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
           {error && <div className="text-red-400 text-sm">{error}</div>}
           <button

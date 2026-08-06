@@ -14,14 +14,14 @@ import AdminMatchOverride from '../components/admin/AdminMatchOverride'
 import AdminManualGoal from '../components/admin/AdminManualGoal'
 import AdminActivityLog from '../components/admin/AdminActivityLog'
 import AnalyticsDashboard from '../components/admin/AnalyticsDashboard'
-import { Users, Calendar, DollarSign, BarChart3, MessageCircle, Trophy, Settings, UserPlus, Target, Activity } from 'lucide-react'
+import AdminPromoCodes from '../components/admin/AdminPromoCodes'
+import { Users, Calendar, DollarSign, BarChart3, MessageCircle, Trophy, Settings, UserPlus, Target, Activity, Gift } from 'lucide-react'
 
 const AdminDashboard = () => {
   const { user } = useSupabase()
   const { customMatches, matchHistory } = useMatchEngine()
   const [activeTab, setActiveTab] = useState('matches')
 
-  // 🔒 SECURITY: Block non-admin access
   if (!user || user.role !== 'admin') {
     return (
       <div className="py-4 text-center">
@@ -49,6 +49,7 @@ const AdminDashboard = () => {
     { id: 'override', label: 'Match Override', icon: Target },
     { id: 'goal', label: 'Manual Goal', icon: Target },
     { id: 'activity', label: 'Activity Log', icon: Activity },
+    { id: 'promo', label: 'Promo Codes', icon: Gift },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   ]
 
@@ -92,6 +93,7 @@ const AdminDashboard = () => {
         {activeTab === 'override' && <AdminMatchOverride />}
         {activeTab === 'goal' && <AdminManualGoal />}
         {activeTab === 'activity' && <AdminActivityLog />}
+        {activeTab === 'promo' && <AdminPromoCodes />}
         {activeTab === 'analytics' && <AnalyticsDashboard />}
       </div>
     </div>
