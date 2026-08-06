@@ -92,7 +92,7 @@ export const MatchEngineProvider = ({ children }) => {
     }
   }
 
-  // Real‑time simulation – runs every second
+  // Simulation effect (runs every second)
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
 
@@ -107,28 +107,25 @@ export const MatchEngineProvider = ({ children }) => {
       let matchesToArchive = []
 
       updatedMatches = updatedMatches.map(m => {
-        // Auto‑start
-        if (m.status === 'upcoming' && new Date(m.startTime) <= now) {
-          changesMade = true
-          return { ...m, status: 'live', elapsedSeconds: 0 }
-        }
+        // ✅ Auto‑start is now handled by Vercel cron job – remove frontend auto‑start
+        // if (m.status === 'upcoming' && new Date(m.startTime) <= now) {
+        //   changesMade = true
+        //   return { ...m, status: 'live', elapsedSeconds: 0 }
+        // }
 
+        // Live simulation
         if (m.status === 'live') {
           let newGoals = { ...m.goals }
           let events = [...(m.events || [])]
           let goalTimeline = [...(m.goalTimeline || [])]
-          // ✅ Real‑time: add 1 second per tick
           let newElapsedSeconds = (m.elapsedSeconds || 0) + 1
 
-          // Check if a goal should happen at this second
           const schedule = m.goalSchedule || { home: [], away: [] }
           const homeMinutes = schedule.home || []
           const awayMinutes = schedule.away || []
-          // Compute current minute (rounded down)
           const currentMinute = Math.floor(newElapsedSeconds / 60)
-
-          // If we crossed a minute boundary, check for goals
           const prevMinute = Math.floor((newElapsedSeconds - 1) / 60)
+
           if (currentMinute !== prevMinute) {
             if (homeMinutes.includes(currentMinute)) {
               newGoals.home += 1
@@ -143,7 +140,6 @@ export const MatchEngineProvider = ({ children }) => {
           }
 
           let halftimeScore = m.halftimeScore
-          // Half‑time at exactly 2700 seconds (45 minutes)
           if (newElapsedSeconds === 2700) {
             halftimeScore = { home: newGoals.home, away: newGoals.away }
           }
@@ -153,7 +149,6 @@ export const MatchEngineProvider = ({ children }) => {
             status = 'HT'
           }
 
-          // Full‑time at 5400 seconds (90 minutes)
           if (newElapsedSeconds >= 5400) {
             changesMade = true
             const result = {
@@ -231,7 +226,7 @@ export const MatchEngineProvider = ({ children }) => {
       }
 
       processingRef.current = false
-    }, 1000) // ✅ runs every 1 second
+    }, 1000)
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
