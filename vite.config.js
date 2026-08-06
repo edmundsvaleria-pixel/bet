@@ -20,4 +20,23 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // ✅ Split vendor chunks for faster loading
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React ecosystem
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          // Supabase client
+          supabase: ['@supabase/supabase-js'],
+          // UI icons and animations
+          ui: ['lucide-react', 'framer-motion'],
+          // Charts (if used)
+          charts: ['recharts'],
+        },
+      },
+    },
+    // Increase chunk size warning limit (optional)
+    chunkSizeWarningLimit: 1000,
+  },
 })

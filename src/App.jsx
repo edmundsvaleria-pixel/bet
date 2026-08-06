@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Layout from './layouts/Layout'
 
@@ -10,20 +11,30 @@ import { BetProvider } from './context/BetContext'
 import { MatchEngineProvider } from './context/MatchEngineContext'
 import { SupportProvider } from './context/SupportContext'
 
-// Pages
-import Home from './pages/Home'
-import Live from './pages/Live'
-import Wallet from './pages/Wallet'
-import Menu from './pages/Menu'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Profile from './pages/Profile'
-import MatchDetails from './pages/MatchDetails'
-import MyBets from './pages/MyBets'
-import AdminDashboard from './pages/AdminDashboard'
-import Support from './pages/Support'
-import Terms from './pages/Terms'
-import Referral from './pages/Referral'  // ✅ Import Referral page
+// ✅ Lazy load all pages (they will be split into separate chunks)
+const Home = lazy(() => import('./pages/Home'))
+const Live = lazy(() => import('./pages/Live'))
+const Wallet = lazy(() => import('./pages/Wallet'))
+const Menu = lazy(() => import('./pages/Menu'))
+const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
+const Profile = lazy(() => import('./pages/Profile'))
+const MatchDetails = lazy(() => import('./pages/MatchDetails'))
+const MyBets = lazy(() => import('./pages/MyBets'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const Support = lazy(() => import('./pages/Support'))
+const Terms = lazy(() => import('./pages/Terms'))
+const Referral = lazy(() => import('./pages/Referral'))
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[60vh]">
+    <div className="text-center">
+      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <p className="mt-4 text-gray-400">Loading...</p>
+    </div>
+  </div>
+)
 
 function App() {
   return (
@@ -35,21 +46,23 @@ function App() {
               <MatchEngineProvider>
                 <SupportProvider>
                   <Layout>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/live" element={<Live />} />
-                      <Route path="/wallet" element={<Wallet />} />
-                      <Route path="/menu" element={<Menu />} />
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/register" element={<Register />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route path="/match/:id" element={<MatchDetails />} />
-                      <Route path="/my-bets" element={<MyBets />} />
-                      <Route path="/admin" element={<AdminDashboard />} />
-                      <Route path="/support" element={<Support />} />
-                      <Route path="/terms" element={<Terms />} />
-                      <Route path="/referral" element={<Referral />} />  {/* ✅ Add referral route */}
-                    </Routes>
+                    <Suspense fallback={<PageLoader />}>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/live" element={<Live />} />
+                        <Route path="/wallet" element={<Wallet />} />
+                        <Route path="/menu" element={<Menu />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/match/:id" element={<MatchDetails />} />
+                        <Route path="/my-bets" element={<MyBets />} />
+                        <Route path="/admin" element={<AdminDashboard />} />
+                        <Route path="/support" element={<Support />} />
+                        <Route path="/terms" element={<Terms />} />
+                        <Route path="/referral" element={<Referral />} />
+                      </Routes>
+                    </Suspense>
                   </Layout>
                 </SupportProvider>
               </MatchEngineProvider>
