@@ -15,7 +15,6 @@ const UserList = () => {
   const refreshUsers = async () => {
     const data = await getAllUsers()
     setUsers(data)
-    // Fetch balances for all users
     if (data.length > 0) {
       const userIds = data.map(u => u.id)
       const { data: balanceData, error } = await supabase
@@ -28,8 +27,6 @@ const UserList = () => {
           balanceMap[b.user_id] = { available: b.available || 0, withdrawable: b.withdrawable || 0 }
         })
         setBalances(balanceMap)
-      } else {
-        console.warn('Failed to fetch balances:', error)
       }
     }
   }
@@ -46,18 +43,6 @@ const UserList = () => {
     if (result.success) {
       refreshUsers()
       showNotification(`User ${email} ${newStatus ? 'activated' : 'deactivated'}`, 'success')
-    } else {
-      showNotification(result.error || 'Action failed', 'error')
-    }
-  }
-
-  const handleChangeRole = async (email, role) => {
-    const user = users.find(u => u.email === email)
-    if (!user) return
-    const result = await adminUpdateUser(user.id, { role })
-    if (result.success) {
-      refreshUsers()
-      showNotification(`User ${email} role changed to ${role}`, 'success')
     } else {
       showNotification(result.error || 'Action failed', 'error')
     }
@@ -133,22 +118,7 @@ const UserList = () => {
                     >
                       {u.active ? 'Deactivate' : 'Activate'}
                     </button>
-                    {u.role !== 'admin' && (
-                      <button
-                        onClick={() => handleChangeRole(u.email, 'admin')}
-                        className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded hover:bg-yellow-500 hover:text-white transition"
-                      >
-                        Make Admin
-                      </button>
-                    )}
-                    {u.role === 'admin' && u.email !== 'admin@betzone.com' && (
-                      <button
-                        onClick={() => handleChangeRole(u.email, 'user')}
-                        className="text-xs bg-gray-500/20 text-gray-400 px-2 py-1 rounded hover:bg-gray-500 hover:text-white transition"
-                      >
-                        Remove Admin
-                      </button>
-                    )}
+                    {/* ✅ "Make Admin" button REMOVED */}
                     {u.email !== 'admin@betzone.com' && (
                       <button
                         onClick={() => handleDeleteUser(u.email, u.name)}

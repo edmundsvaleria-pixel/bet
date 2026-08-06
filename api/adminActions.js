@@ -14,52 +14,60 @@ export default async function handler(req, res) {
 
   const { action, userId, updates } = req.body
 
-  // Verify token and admin role
+  // Verify token
   const authHeader = req.headers.authorization
   if (!authHeader) {
-    return res.status(401).json({ error: 'Unauthorized' })
+    return res.status(401).json({ error: 'Unauthorized: No token' })
   }
 
   const token = authHeader.split(' ')[1]
   const regularClient = createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY)
-  const { data: { user }, error: userError } = await regularClient.auth.getUser(token)
-
-  if (userError || !user) {
-    return res.status(401).json({ error: 'Invalid token' })
-  }
-
-  const { data: adminCheck } = await regularClient
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (adminCheck?.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden' })
-  }
-
-  switch (action) {
-    case 'deleteUser': {
-      await supabaseAdmin.auth.admin.deleteUser(userId)
-      await regularClient.from('users').delete().eq('id', userId)
-      await regularClient.from('balances').delete().eq('user_id', userId)
-      return res.status(200).json({ success: true })
+  
+  try {
+    const { data: { user }, error: userError } = await regularClient.auth.getUser(token)
+    if (userError || !user) {
+      return res.status(401).json({ error: 'Invalid token' })
     }
-    case 'updateUser': {
-      if (updates.active === false) {
-        try {
-          await supabaseAdmin.auth.admin.revokeUser(userId)
-        } catch (_) {}
+
+    // Check admin role – directly query users table (bypasses RLS)
+    const { data: adminCheck, error: adminError } = await regularClient
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (adminError || adminCheck?.role !== 'admin') {
+      console.error('Admin check failed:', adminError)
+      return res.status(403).json({ error: 'Forbidden: Not admin' })
+    }
+
+    // Process action
+    switch (action) {
+      case 'deleteUser': {
+        await supabaseAdmin.auth.admin.deleteUser(userId)
+        await regularClient.from('users').delete().eq('id', userId)
+        await regularClient.from('balances').delete().eq('user_id', userId)
+        return res.status(200).json({ success: true })
       }
-      const { data, error } = await regularClient
-        .from('users')
-        .update(updates)
-        .eq('id', userId)
-        .select()
-      if (error) throw error
-      return res.status(200).json({ success: true, user: data?.[0] })
+      case 'updateUser': {
+        if (updates.active === false) {
+          try {
+            await supabaseAdmin.auth.admin.revokeUser(userId)
+          } catch (_) {}
+        }
+        const { data, error } = await regularClient
+          .from('users')
+          .update(updates)
+          .eq('id', userId)
+          .select()
+        if (error) throw error
+        return res.status(200).json({ success: true, user: data?.[0] })
+      }
+      default:
+        return res.status(400).json({ error: 'Invalid action' })
     }
-    default:
-      return res.status(400).json({ error: 'Invalid action' })
+  } catch (error) {
+    console.error('Admin action error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
   }
 }
