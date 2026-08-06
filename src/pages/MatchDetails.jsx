@@ -1,110 +1,77 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
-import { getMatchDetails } from '../services/footballApi'
-import { getOddsForMatch, extractOdds } from '../services/oddsApi'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useMatchEngine } from '../context/MatchEngineContext'
 import { useBet } from '../context/BetContext'
 
 const MatchDetails = () => {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [match, setMatch] = useState(null)
-  const [odds, setOdds] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const { addSelection } = useBet()
   const { customMatches } = useMatchEngine()
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true)
+    const isCustom = id.toString().startsWith('custom_')
+    const customId = isCustom ? parseInt(id.toString().replace('custom_', '')) : null
 
-        const isCustom = id.toString().startsWith('custom_')
-        const customId = isCustom ? parseInt(id.toString().replace('custom_', '')) : null
-
-        if (isCustom && customId) {
-          const customMatch = customMatches.find(m => m.id === customId)
-          if (!customMatch) {
-            setError('Match not found')
-            return
-          }
-
-          const isLive = customMatch.status === 'live'
-          const isFinished = customMatch.status === 'finished'
-          const elapsed = customMatch.elapsed || 0
-          const isHalfTime = elapsed === 45
-
-          const matchData = {
-            fixture: {
-              id: `custom_${customMatch.id}`,
-              status: {
-                short: isFinished ? 'FT' : isHalfTime ? 'HT' : isLive ? 'LIVE' : 'NS',
-                elapsed: elapsed,
-                long: isFinished ? 'Finished' : isHalfTime ? 'Half-time' : isLive ? 'Live' : 'Not Started',
-              },
-              date: customMatch.startTime,
-              venue: {
-                name: 'Custom Match',
-                city: 'BetZone',
-              },
-            },
-            teams: {
-              home: {
-                name: customMatch.homeTeam,
-                logo: null,
-              },
-              away: {
-                name: customMatch.awayTeam,
-                logo: null,
-              },
-            },
-            league: {
-              name: customMatch.league || 'Custom League',
-              logo: null,
-            },
-            goals: {
-              home: customMatch.goals?.home || 0,
-              away: customMatch.goals?.away || 0,
-            },
-            isCustom: true,
-            customMatch: customMatch,
-          }
-
-          setMatch(matchData)
-          if (customMatch.markets) {
-            setOdds(customMatch.markets)
-          } else {
-            setOdds(null)
-          }
-        } else {
-          const matchData = await getMatchDetails(id)
-          if (!matchData) {
-            setError('Match not found')
-            return
-          }
-          setMatch(matchData)
-
-          const home = matchData.teams.home.name
-          const away = matchData.teams.away.name
-          const date = matchData.fixture.date.split('T')[0]
-          const league = matchData.league.name
-          const oddsData = await getOddsForMatch(home, away, date, league)
-          if (oddsData) {
-            const extracted = extractOdds(oddsData)
-            setOdds(extracted)
-          } else {
-            setOdds(null)
-          }
-        }
-        setError(null)
-      } catch (err) {
-        setError('Failed to load match details')
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
+    if (!isCustom || !customId) {
+      setError('Invalid match ID – only custom matches are available')
+      setLoading(false)
+      return
     }
-    fetchData()
+
+    const customMatch = customMatches.find(m => m.id === customId)
+    if (!customMatch) {
+      setError('Match not found')
+      setLoading(false)
+      return
+    }
+
+    const isLive = customMatch.status === 'live'
+    const isFinished = customMatch.status === 'finished'
+    const elapsed = customMatch.elapsed || 0
+    const isHalfTime = elapsed === 2700
+
+    const matchData = {
+      fixture: {
+        id: `custom_${customMatch.id}`,
+        status: {
+          short: isFinished ? 'FT' : isHalfTime ? 'HT' : isLive ? 'LIVE' : 'NS',
+          elapsed: elapsed,
+          long: isFinished ? 'Finished' : isHalfTime ? 'Half-time' : isLive ? 'Live' : 'Not Started',
+        },
+        date: customMatch.startTime,
+        venue: {
+          name: 'Custom Match',
+          city: 'BetZone',
+        },
+      },
+      teams: {
+        home: {
+          name: customMatch.homeTeam,
+          logo: null,
+        },
+        away: {
+          name: customMatch.awayTeam,
+          logo: null,
+        },
+      },
+      league: {
+        name: customMatch.league || 'Custom League',
+        logo: null,
+      },
+      goals: {
+        home: customMatch.goals?.home || 0,
+        away: customMatch.goals?.away || 0,
+      },
+      isCustom: true,
+      customMatch: customMatch,
+    }
+
+    setMatch(matchData)
+    setLoading(false)
   }, [id, customMatches])
 
   const handleAddBet = (market, oddsValue, label) => {
@@ -133,6 +100,12 @@ const MatchDetails = () => {
         <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 text-red-300">
           {error}
         </div>
+        <button
+          onClick={() => navigate('/')}
+          className="mt-4 bg-primary hover:bg-primary/80 text-white font-bold py-2 px-4 rounded-lg transition"
+        >
+          Go Home
+        </button>
       </div>
     )
   }
@@ -145,6 +118,8 @@ const MatchDetails = () => {
   const elapsed = match.fixture.status.elapsed || 0
   const homeScore = match.goals.home ?? '-'
   const awayScore = match.goals.away ?? '-'
+
+  const oddsData = match.customMatch?.markets || null
 
   const OddsButton = ({ label, oddsValue, market, className = '' }) => {
     if (!oddsValue) return null
@@ -226,125 +201,64 @@ const MatchDetails = () => {
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-white">Markets</h3>
 
-        {!odds && !match.isCustom ? (
+        {!oddsData ? (
           <div className="bg-card rounded-lg p-4 text-center text-gray-400 border border-white/5">
-            Odds are currently unavailable for this match.
+            Odds are not configured for this custom match.
           </div>
-        ) : null}
-
-        {odds && !match.isCustom && (
+        ) : (
           <>
-            {odds.h2h && (
+            {/* 1X2 */}
+            {oddsData.h2h && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Match Winner (1X2)</div>
                 <div className="flex gap-2 flex-wrap">
-                  <OddsButton label={match.teams.home.name} oddsValue={odds.h2h.home} market="1X2_home" />
-                  <OddsButton label="Draw" oddsValue={odds.h2h.draw} market="1X2_draw" />
-                  <OddsButton label={match.teams.away.name} oddsValue={odds.h2h.away} market="1X2_away" />
+                  <OddsButton label={match.teams.home.name} oddsValue={oddsData.h2h.home} market="1X2_home" />
+                  <OddsButton label="Draw" oddsValue={oddsData.h2h.draw} market="1X2_draw" />
+                  <OddsButton label={match.teams.away.name} oddsValue={oddsData.h2h.away} market="1X2_away" />
                 </div>
               </div>
             )}
-            {odds.overUnder && (
+
+            {/* Over/Under */}
+            {Object.keys(oddsData.overUnder || {}).length > 0 && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Over / Under</div>
-                <div className="flex gap-2 flex-wrap">
-                  <OddsButton label="Over" oddsValue={odds.overUnder.over} market="over" />
-                  <OddsButton label="Under" oddsValue={odds.overUnder.under} market="under" />
-                </div>
-              </div>
-            )}
-            {odds.doubleChance && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Double Chance</div>
-                <div className="flex gap-2 flex-wrap">
-                  {Object.entries(odds.doubleChance).map(([key, val]) => (
-                    <OddsButton key={key} label={key} oddsValue={val} market={`double_chance_${key}`} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {odds.drawNoBet && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Draw No Bet</div>
-                <div className="flex gap-2 flex-wrap">
-                  <OddsButton label={match.teams.home.name} oddsValue={odds.drawNoBet.home} market="dnb_home" />
-                  <OddsButton label={match.teams.away.name} oddsValue={odds.drawNoBet.away} market="dnb_away" />
-                </div>
-              </div>
-            )}
-            {odds.btts && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Both Teams To Score</div>
-                <div className="flex gap-2 flex-wrap">
-                  <OddsButton label="Yes" oddsValue={odds.btts.yes} market="btts_yes" />
-                  <OddsButton label="No" oddsValue={odds.btts.no} market="btts_no" />
-                </div>
-              </div>
-            )}
-            {odds.firstHalfWinner && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">First Half Winner</div>
-                <div className="flex gap-2 flex-wrap">
-                  <OddsButton label={match.teams.home.name} oddsValue={odds.firstHalfWinner.home} market="fh_winner_home" />
-                  <OddsButton label="Draw" oddsValue={odds.firstHalfWinner.draw} market="fh_winner_draw" />
-                  <OddsButton label={match.teams.away.name} oddsValue={odds.firstHalfWinner.away} market="fh_winner_away" />
-                </div>
-              </div>
-            )}
-            {odds.secondHalfWinner && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Second Half Winner</div>
-                <div className="flex gap-2 flex-wrap">
-                  <OddsButton label={match.teams.home.name} oddsValue={odds.secondHalfWinner.home} market="sh_winner_home" />
-                  <OddsButton label="Draw" oddsValue={odds.secondHalfWinner.draw} market="sh_winner_draw" />
-                  <OddsButton label={match.teams.away.name} oddsValue={odds.secondHalfWinner.away} market="sh_winner_away" />
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {match.isCustom && match.customMatch?.markets && (
-          <div className="space-y-4 mt-4">
-            <h3 className="text-lg font-bold text-white border-t border-white/10 pt-4">Custom Markets</h3>
-
-            {Object.keys(match.customMatch.markets.overUnder || {}).length > 0 && (
-              <div className="bg-card rounded-lg p-4 border border-white/5">
-                <div className="text-sm text-gray-400 mb-2">Over / Under (Custom)</div>
                 <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(match.customMatch.markets.overUnder).map(([line, odds]) => (
+                  {Object.entries(oddsData.overUnder).map(([line, odds]) => (
                     <div key={line} className="flex gap-2 items-center">
                       <span className="text-xs text-white w-8">O{line}</span>
-                      <OddsButton label="Over" oddsValue={odds.over} market={`custom_over_${line}`} />
-                      <OddsButton label="Under" oddsValue={odds.under} market={`custom_under_${line}`} />
+                      <OddsButton label="Over" oddsValue={odds.over} market={`over_${line}`} />
+                      <OddsButton label="Under" oddsValue={odds.under} market={`under_${line}`} />
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {Object.keys(match.customMatch.markets.correctScore || {}).length > 0 && (
+            {/* Correct Score */}
+            {Object.keys(oddsData.correctScore || {}).length > 0 && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Correct Score</div>
                 <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(match.customMatch.markets.correctScore).map(([score, odds]) => (
-                    <OddsButton key={score} label={score} oddsValue={odds} market={`custom_cs_${score}`} />
+                  {Object.entries(oddsData.correctScore).map(([score, odds]) => (
+                    <OddsButton key={score} label={score} oddsValue={odds} market={`cs_${score}`} />
                   ))}
                 </div>
               </div>
             )}
 
-            {Object.keys(match.customMatch.markets.htft || {}).length > 0 && (
+            {/* HT/FT */}
+            {Object.keys(oddsData.htft || {}).length > 0 && (
               <div className="bg-card rounded-lg p-4 border border-white/5">
                 <div className="text-sm text-gray-400 mb-2">Half Time / Full Time</div>
                 <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(match.customMatch.markets.htft).map(([key, odds]) => (
-                    <OddsButton key={key} label={key} oddsValue={odds} market={`custom_htft_${key}`} />
+                  {Object.entries(oddsData.htft).map(([key, odds]) => (
+                    <OddsButton key={key} label={key} oddsValue={odds} market={`htft_${key}`} />
                   ))}
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>

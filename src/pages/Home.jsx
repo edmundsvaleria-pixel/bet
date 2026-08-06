@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react'
-import { getLiveFixtures, getFixturesByDate } from '../services/footballApi'
-import { getOddsForFixture, extractOdds } from '../services/oddsApi'
 import { useMatchEngine } from '../context/MatchEngineContext'
 import { useSupabase } from '../context/SupabaseContext'
 import MatchCard from '../components/common/MatchCard'
@@ -11,8 +9,6 @@ import EmptyState from '../components/common/EmptyState'
 import { Search, X } from 'lucide-react'
 
 const Home = () => {
-  const [liveMatches, setLiveMatches] = useState([])
-  const [upcomingMatches, setUpcomingMatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -21,75 +17,14 @@ const Home = () => {
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        const today = new Date()
-        const dates = []
-        for (let i = 0; i < 3; i++) {
-          const d = new Date(today)
-          d.setDate(d.getDate() + i)
-          dates.push(d.toISOString().split('T')[0])
-        }
-
-        const [liveData, ...upcomingData] = await Promise.all([
-          getLiveFixtures(),
-          ...dates.map(date => getFixturesByDate(date)),
-        ])
-
-        const allUpcomingRaw = upcomingData.flat()
-        const upcomingMap = {}
-        allUpcomingRaw.forEach(m => {
-          if (!upcomingMap[m.fixture.id]) {
-            upcomingMap[m.fixture.id] = m
-          }
-        })
-        const filteredUpcoming = Object.values(upcomingMap)
-
-        const limitedLive = liveData.slice(0, 10)
-        const limitedUpcoming = filteredUpcoming.slice(0, 10)
-
-        const fetchOddsForMatches = async (matches) => {
-          const results = await Promise.allSettled(
-            matches.map(async (match) => {
-              try {
-                const odds = await getOddsForFixture(match)
-                if (odds) {
-                  const extracted = extractOdds(odds)
-                  return { ...match, odds: extracted }
-                }
-                return match
-              } catch (e) {
-                return match
-              }
-            })
-          )
-          return results.map((res, idx) => res.value || matches[idx])
-        }
-
-        const liveWithOdds = await fetchOddsForMatches(limitedLive.slice(0, 5))
-        const upcomingWithOdds = await fetchOddsForMatches(limitedUpcoming)
-
-        setLiveMatches(liveWithOdds)
-        setUpcomingMatches(upcomingWithOdds)
-        setError(null)
-      } catch (err) {
-        console.error('Home fetch error:', err)
-        setError('Failed to load matches. Please refresh.')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
+    // Just simulate loading – custom matches are already available from context
+    setLoading(false)
   }, [])
 
-  // ✅ Convert custom matches to MatchCard format – now with odds
+  // Convert custom matches to MatchCard format
   const customToMatchCard = (match) => {
     const isLive = match.status === 'live'
     const isUpcoming = match.status === 'upcoming'
-
-    // ✅ Map custom markets to odds for display on match card
     const oddsData = match.markets?.h2h || null
 
     return {
@@ -133,10 +68,10 @@ const Home = () => {
   const customLive = customMatches.filter(m => m.status === 'live').map(customToMatchCard)
   const customUpcoming = customMatches.filter(m => m.status === 'upcoming').map(customToMatchCard)
 
-  const allLive = [...liveMatches, ...customLive]
-  const allUpcoming = [...upcomingMatches, ...customUpcoming]
+  const allLive = customLive
+  const allUpcoming = customUpcoming
 
-  // Search logic – filter only custom matches
+  // Search logic – filter custom matches
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value)
   }
@@ -289,7 +224,7 @@ const Home = () => {
         <EmptyState
           icon="⚽"
           title="No matches available"
-          message="Check back later for upcoming matches."
+          message="No custom matches yet. An admin will create one soon."
           actionText={isAdmin ? "Go to Admin" : undefined}
           actionLink={isAdmin ? "/admin" : undefined}
         />
