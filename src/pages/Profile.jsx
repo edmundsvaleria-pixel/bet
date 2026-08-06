@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useSupabase } from '../context/SupabaseContext'
 import { useNotification } from '../context/NotificationContext'
+import { Eye, EyeOff } from 'lucide-react'
+import supabase from '../lib/supabase'
 
 const Profile = () => {
   const { user, balance, signOut } = useSupabase()
@@ -12,6 +14,7 @@ const Profile = () => {
   const [showOld, setShowOld] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
 
   if (!user) {
     return (
@@ -24,24 +27,46 @@ const Profile = () => {
 
   const handleChangePassword = async (e) => {
     e.preventDefault()
+    setPasswordError('')
+    setLoading(true)
+
+    // Validate
     if (newPassword !== confirmPassword) {
-      showNotification('Passwords do not match', 'error')
+      setPasswordError('Passwords do not match')
+      setLoading(false)
       return
     }
     if (newPassword.length < 6) {
-      showNotification('Password must be at least 6 characters', 'error')
+      setPasswordError('Password must be at least 6 characters')
+      setLoading(false)
       return
     }
-    setLoading(true)
+
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword })
-      if (error) throw error
+      // ✅ Update password using Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      if (error) {
+        // ✅ Show specific error message
+        if (error.message.includes('Password should be different')) {
+          setPasswordError('New password must be different from current')
+        } else {
+          setPasswordError(error.message)
+        }
+        setLoading(false)
+        return
+      }
+
       showNotification('Password updated successfully!', 'success')
       setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
+      setPasswordError('')
     } catch (err) {
-      showNotification(err.message || 'Failed to update password', 'error')
+      console.error(err)
+      setPasswordError(err.message || 'Failed to update password')
     } finally {
       setLoading(false)
     }
@@ -144,6 +169,9 @@ const Profile = () => {
                 </button>
               </div>
             </div>
+            {passwordError && (
+              <div className="text-red-400 text-sm">{passwordError}</div>
+            )}
             <button
               type="submit"
               disabled={loading}
@@ -157,8 +185,5 @@ const Profile = () => {
     </div>
   )
 }
-
-// Add Eye/EyeOff imports
-import { Eye, EyeOff } from 'lucide-react'
 
 export default Profile
