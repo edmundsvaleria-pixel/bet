@@ -22,15 +22,30 @@ const Home = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const today = new Date().toISOString().split('T')[0]
+        const today = new Date()
+        const dates = []
+        for (let i = 0; i < 3; i++) {
+          const d = new Date(today)
+          d.setDate(d.getDate() + i)
+          dates.push(d.toISOString().split('T')[0])
+        }
 
-        const [liveData, upcomingData] = await Promise.all([
+        // Fetch live matches and upcoming for multiple days
+        const [liveData, ...upcomingData] = await Promise.all([
           getLiveFixtures(),
-          getFixturesByDate(today),
+          ...dates.map(date => getFixturesByDate(date)),
         ])
 
-        const liveIds = new Set(liveData.map(m => m.fixture.id))
-        const filteredUpcoming = upcomingData.filter(m => !liveIds.has(m.fixture.id))
+        // Combine all upcoming fixtures
+        const allUpcomingRaw = upcomingData.flat()
+        // Remove duplicates by fixture id
+        const upcomingMap = {}
+        allUpcomingRaw.forEach(m => {
+          if (!upcomingMap[m.fixture.id]) {
+            upcomingMap[m.fixture.id] = m
+          }
+        })
+        const filteredUpcoming = Object.values(upcomingMap)
 
         const limitedLive = liveData.slice(0, 10)
         const limitedUpcoming = filteredUpcoming.slice(0, 10)
@@ -138,7 +153,7 @@ const Home = () => {
     )
   }
 
-  // ✅ If user is logged in, show carousel of upcoming matches instead of hero
+  // ✅ Show carousel for logged-in users if there are upcoming matches
   const showCarousel = user && allUpcoming.length > 0
 
   return (
