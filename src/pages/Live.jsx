@@ -8,7 +8,6 @@ const Live = () => {
   const [loading, setLoading] = useState(false)
   const { customMatches } = useMatchEngine()
 
-  // Convert custom matches to MatchCard format
   const customToMatchCard = (match) => {
     const isLive = match.status === 'live'
     const oddsData = match.markets?.h2h || null

@@ -55,7 +55,6 @@ const Wallet = () => {
         return
       }
 
-      // Expiry check – date only
       if (promo.expires_at) {
         const expiryDate = new Date(promo.expires_at)
         const today = new Date()
@@ -70,7 +69,6 @@ const Wallet = () => {
         }
       }
 
-      // Check if already redeemed
       const { data: redeemed } = await supabase
         .from('user_promo_redemptions')
         .select('id')
@@ -84,28 +82,23 @@ const Wallet = () => {
         return
       }
 
-      // Check max uses
       if (promo.max_uses && promo.used_count >= promo.max_uses) {
         setPromoMessage('This promo code has reached its limit')
         setRedeeming(false)
         return
       }
 
-      // Convert bonus to user's currency
       const bonusInGHS = promo.bonus_amount
       const convertedBonus = await convertFromGHS(bonusInGHS, user.currency || 'GHS')
 
-      // Get current balance from Supabase
       const currentBalance = await walletService.getBalance(user.id)
       const newAvailable = (currentBalance?.available || 0) + convertedBonus
 
-      // Update Supabase balance
       await supabase
         .from('balances')
         .update({ available: newAvailable })
         .eq('user_id', user.id)
 
-      // Log redemption
       await supabase
         .from('user_promo_redemptions')
         .insert({
@@ -129,7 +122,6 @@ const Wallet = () => {
           status: 'completed',
         })
 
-      // ✅ Optimistic UI update – show instantly
       updateBalance({ ...balance, available: newAvailable })
 
       showNotification(`🎉 Promo code redeemed! +${currency} ${convertedBonus.toFixed(2)}`, 'success')
@@ -202,7 +194,6 @@ const Wallet = () => {
         </div>
       </div>
 
-      {/* Promo Code */}
       <div className="bg-card rounded-lg p-4 border border-dashed border-yellow-500/40">
         <div className="flex items-center gap-2 mb-2">
           <Gift size={18} className="text-yellow-400" />
@@ -232,20 +223,13 @@ const Wallet = () => {
       </div>
 
       <div className="flex gap-4">
-        <button
-          onClick={() => setShowDeposit(true)}
-          className="flex-1 bg-primary hover:bg-primary/80 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"
-        >
+        <button onClick={() => setShowDeposit(true)} className="flex-1 bg-primary hover:bg-primary/80 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">
           <Plus size={20} /> Deposit
         </button>
         <button
           onClick={() => setShowWithdraw(true)}
           disabled={!canWithdraw}
-          className={`flex-1 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition ${
-            canWithdraw
-              ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400'
-              : 'bg-gray-600/30 text-gray-500 cursor-not-allowed'
-          }`}
+          className={`flex-1 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition ${canWithdraw ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400' : 'bg-gray-600/30 text-gray-500 cursor-not-allowed'}`}
         >
           <Minus size={20} /> Withdraw
         </button>

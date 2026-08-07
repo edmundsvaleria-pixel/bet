@@ -3,14 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useMatchEngine } from '../context/MatchEngineContext'
 import { useBet } from '../context/BetContext'
 
-// Helper functions for letter logos
 const getTeamColor = (name) => {
-  const colors = [
-    'bg-blue-500', 'bg-red-500', 'bg-green-500', 'bg-yellow-500',
-    'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-orange-500',
-    'bg-teal-500', 'bg-cyan-500', 'bg-rose-500', 'bg-emerald-500',
-    'bg-violet-500', 'bg-fuchsia-500', 'bg-amber-500', 'bg-lime-500'
-  ]
+  const colors = ['bg-blue-500', 'bg-red-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-orange-500', 'bg-teal-500', 'bg-cyan-500', 'bg-rose-500', 'bg-emerald-500', 'bg-violet-500', 'bg-fuchsia-500', 'bg-amber-500', 'bg-lime-500']
   let hash = 0
   for (let i = 0; i < name.length; i++) {
     hash = (hash + name.charCodeAt(i)) % colors.length
@@ -52,7 +46,6 @@ const MatchDetails = () => {
       return
     }
 
-    // ✅ Search in both customMatches and matchHistory
     let foundMatch = customMatches.find(m => m.id === customId)
     let isArchived = false
     if (!foundMatch) {
@@ -175,7 +168,6 @@ const MatchDetails = () => {
   return (
     <div className="py-4 space-y-6">
       <div className="bg-card rounded-lg p-4 border border-white/5">
-        {/* Match header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-400">{match.league.name}</span>
@@ -225,7 +217,6 @@ const MatchDetails = () => {
           {match.fixture.status.long} • {match.fixture.venue.city}
         </div>
 
-        {/* Half-time score */}
         {match.isCustom && match.customMatch?.halftimeScore && (
           <div className="mt-2 p-2 bg-dark/50 rounded-lg text-center">
             <div className="text-xs text-gray-400">Half-time Score</div>
@@ -235,7 +226,6 @@ const MatchDetails = () => {
           </div>
         )}
 
-        {/* Goal timeline */}
         {match.isCustom && match.customMatch?.goalTimeline && match.customMatch.goalTimeline.length > 0 && (
           <div className="mt-2 p-2 bg-dark/50 rounded-lg">
             <div className="text-xs text-gray-400 mb-1">⚽ Goal Timeline</div>
@@ -250,7 +240,6 @@ const MatchDetails = () => {
         )}
       </div>
 
-      {/* Markets section */}
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-white">Markets</h3>
 
@@ -265,7 +254,6 @@ const MatchDetails = () => {
             </div>
           ) : (
             <>
-              {/* 1X2 */}
               {oddsData.h2h && (
                 <div className="bg-card rounded-lg p-4 border border-white/5">
                   <div className="text-sm text-gray-400 mb-2">Match Winner (1X2)</div>
@@ -277,7 +265,6 @@ const MatchDetails = () => {
                 </div>
               )}
 
-              {/* Over/Under */}
               {Object.keys(oddsData.overUnder || {}).length > 0 && (
                 <div className="bg-card rounded-lg p-4 border border-white/5">
                   <div className="text-sm text-gray-400 mb-2">Over / Under</div>
@@ -293,7 +280,6 @@ const MatchDetails = () => {
                 </div>
               )}
 
-              {/* Correct Score */}
               {Object.keys(oddsData.correctScore || {}).length > 0 && (
                 <div className="bg-card rounded-lg p-4 border border-white/5">
                   <div className="text-sm text-gray-400 mb-2">Correct Score</div>
@@ -305,7 +291,6 @@ const MatchDetails = () => {
                 </div>
               )}
 
-              {/* HT/FT */}
               {Object.keys(oddsData.htft || {}).length > 0 && (
                 <div className="bg-card rounded-lg p-4 border border-white/5">
                   <div className="text-sm text-gray-400 mb-2">Half Time / Full Time</div>

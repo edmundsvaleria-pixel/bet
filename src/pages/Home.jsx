@@ -148,7 +148,6 @@ const Home = () => {
 
   return (
     <div className="space-y-6 pb-4">
-      {/* Search bar always visible */}
       <div className="flex items-center gap-2 bg-card rounded-lg p-2 border border-white/5">
         <Search size={20} className="text-gray-400" />
         <input
@@ -166,7 +165,6 @@ const Home = () => {
       </div>
 
       {noMatchesMessage ? (
-        // ✅ Premium Empty State
         <div className="bg-card rounded-2xl p-12 text-center border border-white/5 shadow-lg">
           <div className="flex justify-center mb-6">
             <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">

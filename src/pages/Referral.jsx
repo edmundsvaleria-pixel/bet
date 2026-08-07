@@ -16,7 +16,6 @@ const Referral = () => {
   const fetchReferralData = async () => {
     if (!user) return
     try {
-      // Get user's referral code
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('referral_code')
@@ -26,7 +25,6 @@ const Referral = () => {
       if (userError) throw userError
       setReferralCode(userData.referral_code || '')
 
-      // Get referral earnings
       const { data: earnings, error: earningsError } = await supabase
         .from('referral_earnings')
         .select(`
@@ -51,15 +49,15 @@ const Referral = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await refreshBalance()      // ✅ Update navbar/wallet balance
-    await fetchReferralData()   // ✅ Refresh referral data
+    await refreshBalance()
+    await fetchReferralData()
     setRefreshing(false)
     showNotification('Referral data refreshed', 'success')
   }
 
   useEffect(() => {
     fetchReferralData()
-    refreshBalance() // Ensure balance is up‑to‑date on page load
+    refreshBalance()
   }, [user])
 
   const handleCopy = () => {
@@ -107,16 +105,11 @@ const Referral = () => {
     <div className="py-4 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Refer & Earn</h1>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="text-gray-400 hover:text-white transition"
-        >
+        <button onClick={handleRefresh} disabled={refreshing} className="text-gray-400 hover:text-white transition">
           <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
         </button>
       </div>
 
-      {/* Referral Link Card */}
       <div className="bg-card rounded-2xl p-6 border border-white/5">
         <div className="flex items-center gap-3 mb-4">
           <Gift size={24} className="text-yellow-400" />
@@ -130,16 +123,10 @@ const Referral = () => {
             readOnly
             className="flex-1 bg-transparent text-white text-sm outline-none"
           />
-          <button
-            onClick={handleCopy}
-            className="text-gray-400 hover:text-white transition p-1"
-          >
+          <button onClick={handleCopy} className="text-gray-400 hover:text-white transition p-1">
             <Copy size={18} />
           </button>
-          <button
-            onClick={handleShare}
-            className="text-gray-400 hover:text-white transition p-1"
-          >
+          <button onClick={handleShare} className="text-gray-400 hover:text-white transition p-1">
             <Share2 size={18} />
           </button>
         </div>
@@ -149,7 +136,6 @@ const Referral = () => {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-card rounded-lg p-4 border border-primary/20">
           <div className="text-sm text-gray-400">Total Referrals</div>
@@ -163,7 +149,6 @@ const Referral = () => {
         </div>
       </div>
 
-      {/* Referral History */}
       <div>
         <h3 className="text-lg font-bold text-white mb-3">Referral History</h3>
         {referrals.length === 0 ? (
@@ -176,17 +161,11 @@ const Referral = () => {
             {referrals.map((ref) => (
               <div key={ref.id} className="bg-card rounded-lg p-4 border border-white/5 flex justify-between items-center">
                 <div>
-                  <div className="text-sm text-white">
-                    {ref.referee?.name || 'Anonymous User'}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Joined: {new Date(ref.referee?.created_at).toLocaleDateString()}
-                  </div>
+                  <div className="text-sm text-white">{ref.referee?.name || 'Anonymous User'}</div>
+                  <div className="text-xs text-gray-400">Joined: {new Date(ref.referee?.created_at).toLocaleDateString()}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-bold text-green-400">
-                    +{user?.currency || 'GHS'} {ref.bonus_amount.toFixed(2)}
-                  </div>
+                  <div className="text-sm font-bold text-green-400">+{user?.currency || 'GHS'} {ref.bonus_amount.toFixed(2)}</div>
                   <div className="text-xs text-gray-400 capitalize">{ref.status}</div>
                 </div>
               </div>
