@@ -15,7 +15,7 @@ const Home = () => {
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
-    // ✅ No API calls – just show custom matches
+    // ✅ No API calls – only custom matches from context
     setLoading(false)
   }, [])
 
