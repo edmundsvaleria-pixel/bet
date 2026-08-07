@@ -15,11 +15,9 @@ const Home = () => {
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
-    // ✅ No API calls – only custom matches from context
     setLoading(false)
   }, [])
 
-  // ✅ Convert custom matches to MatchCard format
   const customToMatchCard = (match) => {
     const isLive = match.status === 'live'
     const isUpcoming = match.status === 'upcoming'
@@ -69,7 +67,6 @@ const Home = () => {
   const allLive = customLive
   const allUpcoming = customUpcoming
 
-  // Search logic
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value)
   }
@@ -150,7 +147,6 @@ const Home = () => {
 
   return (
     <div className="space-y-6 pb-4">
-      {/* Search bar */}
       <div className="flex items-center gap-2 bg-card rounded-lg p-2 border border-white/5">
         <Search size={20} className="text-gray-400" />
         <input
